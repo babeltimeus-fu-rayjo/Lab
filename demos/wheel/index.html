@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1220">
+  <meta name="description" content="A spinning prize wheel: set the number of slices, each slice's width and the spin speed, then give it a spin.">
+  <title>Spinning Wheel · Lab</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎡</text></svg>">
+  <link rel="stylesheet" href="../../assets/css/site.css">
+  <style>
+    .wheel-wrap { width: min(940px, 100% - 2rem); margin-inline: auto; }
+
+    .layout { display: grid; grid-template-columns: 1fr minmax(240px, 320px); gap: 1.75rem; align-items: start; }
+    @media (max-width: 780px) { .layout { grid-template-columns: 1fr; } }
+
+    .stage { position: relative; width: min(100%, 400px); aspect-ratio: 1; margin: 0.5rem auto 0; }
+    #wheel { position: absolute; inset: 0; }
+    #wheel canvas { filter: drop-shadow(0 12px 30px rgba(0,0,0,0.45)); }
+
+    /* Fixed pointer at the top, biting into the wheel. */
+    .pointer {
+      position: absolute; top: -2%; left: 50%; transform: translateX(-50%);
+      width: 0; height: 0; z-index: 3;
+      border-left: 16px solid transparent;
+      border-right: 16px solid transparent;
+      border-top: 30px solid #ffd45e;
+      filter: drop-shadow(0 3px 4px rgba(0,0,0,0.5));
+    }
+    /* Center hub / spin button. */
+    .spin-hub {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      z-index: 2;
+      width: 22%; height: 22%; border-radius: 50%;
+      border: none; cursor: pointer;
+      background: radial-gradient(circle at 50% 38%, #fff, #cdd4e6 60%, #9aa3bf);
+      color: #1a2036; font-weight: 900; font-size: clamp(0.7rem, 3.2vw, 1rem); letter-spacing: 0.06em;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4), inset 0 0 0 3px rgba(255,255,255,0.6);
+      transition: transform 0.08s ease, filter 0.12s ease;
+    }
+    .spin-hub:hover { filter: brightness(1.05); }
+    .spin-hub:active { transform: translate(-50%, -50%) scale(0.96); }
+    .spin-hub:disabled { cursor: default; filter: grayscale(0.3) brightness(0.9); }
+
+    .readout { margin: 1.25rem auto 0; text-align: center; min-height: 3rem; }
+    .result-pill {
+      display: inline-flex; align-items: center; gap: 0.6rem;
+      padding: 0.5rem 1rem; border-radius: 999px;
+      background: var(--surface); border: 1px solid var(--border);
+      font-weight: 700; font-size: 1.1rem;
+    }
+    .result-pill .dot { width: 1rem; height: 1rem; border-radius: 50%; }
+    .result-pill.win { animation: pop 0.5s ease; }
+    @keyframes pop { 0% { transform: scale(0.7); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
+    .readout .hint { color: var(--muted); }
+
+    /* ---- Settings ---- */
+    .settings { display: flex; flex-direction: column; gap: 1.25rem; padding: 1.25rem; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; }
+    .settings h2 { margin: 0; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+    .setting label { display: flex; align-items: baseline; justify-content: space-between; font-weight: 600; margin-bottom: 0.4rem; }
+    .setting label output { color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+    .setting input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+    .widths-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+    .widths-head .equal { font-size: 0.75rem; font-weight: 600; color: var(--muted); background: none; border: 0; cursor: pointer; text-decoration: underline; }
+    .widths-head .equal:hover { color: var(--text); }
+    .width-list { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.6rem; max-height: 260px; overflow-y: auto; padding-right: 0.25rem; }
+    .width-row { display: grid; grid-template-columns: 1rem auto 1fr 2.4ch; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+    .width-row .swatch { width: 0.9rem; height: 0.9rem; border-radius: 4px; }
+    .width-row .name { color: var(--muted); font-weight: 600; white-space: nowrap; }
+    .width-row input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .width-row output { color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+
+    .board.is-spinning .settings input, .board.is-spinning .settings button { pointer-events: none; opacity: 0.55; }
+
+    .demo-notes { margin: 2rem 0 3rem; padding: 1rem 1.25rem; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--muted); font-size: 0.9rem; }
+    .demo-notes code { color: var(--text); }
+  </style>
+</head>
+<body>
+  <header class="demo-header">
+    <div class="wheel-wrap">
+      <a class="back-inline" href="../../">← Lab</a>
+      <p class="demo-kicker">Demo</p>
+      <h1>Spinning Wheel</h1>
+      <p class="tagline">A prize wheel you can reshape — set how many slices, how wide each one is, and how fast it spins. Then give it a flick.</p>
+    </div>
+  </header>
+
+  <main class="wheel-wrap">
+    <div class="layout board" id="board">
+      <div>
+        <div class="stage" id="stage">
+          <div id="wheel" aria-label="Prize wheel"></div>
+          <div class="pointer" aria-hidden="true"></div>
+          <button class="spin-hub" id="hub" type="button" aria-label="Spin the wheel">SPIN</button>
+        </div>
+        <div class="readout" aria-live="polite">
+          <span class="hint" id="hint">Click the wheel or the hub to spin.</span>
+          <span class="result-pill" id="result" hidden><span class="dot" id="result-dot"></span><span id="result-text"></span></span>
+        </div>
+      </div>
+
+      <aside class="settings" id="settings">
+        <h2>Wheel</h2>
+
+        <div class="setting">
+          <label for="slices">Slices <output id="slices-out">6</output></label>
+          <input type="range" id="slices" min="2" max="12" step="1" value="6">
+        </div>
+
+        <div class="setting">
+          <label for="speed">Spin speed <output id="speed-out">5</output></label>
+          <input type="range" id="speed" min="1" max="10" step="1" value="5">
+        </div>
+
+        <div class="setting">
+          <div class="widths-head">
+            <label style="margin:0; display:block">Slice widths</label>
+            <button class="equal" id="make-equal" type="button">Make equal</button>
+          </div>
+          <div class="width-list" id="width-list"></div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="demo-notes">
+      The wheel lives in <code>wheel.js</code> next to this page: a canvas draws the slices with
+      widths proportional to their weights, and <code>spin()</code> eases a CSS <code>rotate()</code>
+      to a random angle, then reads which slice sits under the pointer. Slice count, per-slice width
+      and spin speed all feed <code>setConfig()</code>. A wider slice is a bigger target, so it wins
+      more often — exactly as a real wheel would.
+    </div>
+  </main>
+
+  <script type="module">
+    import { createWheel } from './wheel.js';
+
+    const mount = document.getElementById('wheel');
+    const wheel = createWheel(mount, { slices: 6, spinSpeed: 5 });
+    const palette = wheel.palette;
+
+    let slices = 6;
+    let weights = Array(slices).fill(1);
+
+    const board = document.getElementById('board');
+    const slicesRange = document.getElementById('slices');
+    const slicesOut = document.getElementById('slices-out');
+    const speedRange = document.getElementById('speed');
+    const speedOut = document.getElementById('speed-out');
+    const list = document.getElementById('width-list');
+    const hub = document.getElementById('hub');
+    const hint = document.getElementById('hint');
+    const resultPill = document.getElementById('result');
+    const resultDot = document.getElementById('result-dot');
+    const resultText = document.getElementById('result-text');
+
+    function renderWidthList() {
+      list.replaceChildren();
+      weights.forEach((w, i) => {
+        const row = document.createElement('div');
+        row.className = 'width-row';
+
+        const swatch = document.createElement('span');
+        swatch.className = 'swatch';
+        swatch.style.background = palette[i % palette.length];
+
+        const name = document.createElement('span');
+        name.className = 'name';
+        name.textContent = `Slice ${i + 1}`;
+
+        const range = document.createElement('input');
+        range.type = 'range';
+        range.min = '1';
+        range.max = '5';
+        range.step = '0.5';
+        range.value = String(w);
+        range.setAttribute('aria-label', `Width of slice ${i + 1}`);
+
+        const out = document.createElement('output');
+        out.textContent = `${w}×`;
+
+        range.addEventListener('input', () => {
+          weights[i] = Number(range.value);
+          out.textContent = `${weights[i]}×`;
+          wheel.setConfig({ weights });
+        });
+
+        row.append(swatch, name, range, out);
+        list.append(row);
+      });
+    }
+
+    slicesRange.addEventListener('input', () => {
+      slices = Number(slicesRange.value);
+      slicesOut.textContent = slices;
+      const next = Array.from({ length: slices }, (_, i) => weights[i] ?? 1);
+      weights = next;
+      renderWidthList();
+      wheel.setConfig({ slices, weights });
+    });
+
+    speedRange.addEventListener('input', () => {
+      speedOut.textContent = speedRange.value;
+      wheel.setConfig({ spinSpeed: Number(speedRange.value) });
+    });
+
+    document.getElementById('make-equal').addEventListener('click', () => {
+      weights = Array(slices).fill(1);
+      renderWidthList();
+      wheel.setConfig({ weights });
+    });
+
+    function spin() { if (!wheel.spinning) wheel.spin(); }
+    document.getElementById('stage').addEventListener('click', spin);
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); spin(); }
+    });
+
+    wheel.addEventListener('spinstart', () => {
+      board.classList.add('is-spinning');
+      hub.disabled = true;
+      hint.hidden = false;
+      hint.textContent = 'Spinning…';
+      resultPill.hidden = true;
+      resultPill.classList.remove('win');
+    });
+    wheel.addEventListener('result', (e) => {
+      board.classList.remove('is-spinning');
+      hub.disabled = false;
+      hint.hidden = true;
+      resultDot.style.background = palette[e.detail.index % palette.length];
+      resultText.textContent = `Landed on ${e.detail.label}`;
+      resultPill.hidden = false;
+      void resultPill.offsetWidth;
+      resultPill.classList.add('win');
+    });
+
+    renderWidthList();
+    window.__wheel = wheel; // for the console
+  </script>
+</body>
+</html>

@@ -24,4 +24,14 @@ export const demos = [
     path: 'demos/slots/',
     tags: ['css transforms', 'animation', 'configurable'],
   },
+  {
+    id: 'wheel',
+    title: 'Spinning Wheel',
+    icon: '🎡',
+    tagline: 'Set the slices, their widths and the spin speed, then flick the prize wheel.',
+    description:
+      'A configurable prize wheel drawn on canvas. Choose how many slices, how wide each one is (a wider slice wins more often) and how fast it spins; give it a flick and it eases to a stop under the pointer.',
+    path: 'demos/wheel/',
+    tags: ['canvas', 'css transforms', 'configurable'],
+  },
 ];
