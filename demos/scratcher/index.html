@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1220">
+  <meta name="description" content="Drag across the card to scratch the foil away and reveal the picture hiding underneath.">
+  <title>Scratch Card · Lab</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪙</text></svg>">
+  <link rel="stylesheet" href="../../assets/css/site.css">
+  <style>
+    .demo-wrap { width: min(600px, 100% - 2rem); margin-inline: auto; }
+
+    .scratch-card {
+      position: relative;
+      aspect-ratio: 3 / 2;
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      background: #0b0e1a center / cover no-repeat; /* the hidden picture is set from the script */
+    }
+    .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem; margin-top: 1rem; }
+    .progress { flex: 1 1 180px; display: flex; align-items: center; gap: 0.6rem; font-variant-numeric: tabular-nums; font-weight: 700; }
+    .progress-bar { flex: 1; height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+    .progress-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width 0.15s ease; }
+    .brush { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; font-weight: 600; }
+    .brush input { width: 120px; accent-color: var(--accent); }
+    .brush output { min-width: 2ch; color: var(--muted); font-weight: 500; }
+    .status { margin: 0.75rem 0 0; min-height: 1.4em; font-weight: 700; color: var(--good); }
+    .demo-notes { margin: 1.5rem 0 3rem; padding: 1rem 1.25rem; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--muted); font-size: 0.9rem; }
+    .demo-notes code { color: var(--text); }
+  </style>
+</head>
+<body>
+  <header class="demo-header">
+    <div class="demo-wrap">
+      <a class="back-inline" href="../../">← Lab</a>
+      <p class="demo-kicker">Demo</p>
+      <h1>Scratch Card</h1>
+      <p class="tagline">Drag across the card to scratch the coating away. A picture is hiding underneath.</p>
+    </div>
+  </header>
+
+  <main class="demo-wrap">
+    <div class="scratch-card" id="card" aria-label="Scratch card"></div>
+
+    <div class="controls">
+      <div class="progress" aria-live="polite">
+        <div class="progress-bar" aria-hidden="true"><i id="bar"></i></div>
+        <span id="pct">0%</span>
+      </div>
+      <label class="brush">Brush
+        <input type="range" id="brush" min="8" max="60" step="1" value="28">
+        <output id="brush-out">28</output>
+      </label>
+      <button class="btn btn-ghost" id="reset" type="button">Reset</button>
+      <button class="btn btn-primary" id="reveal" type="button">Reveal all</button>
+    </div>
+    <p class="status" id="status"></p>
+
+    <div class="demo-notes">
+      The mechanic lives in <code>scratcher.js</code> next to this page: it lays a canvas coating over
+      any element and erases it along the pointer's path (mouse, touch and pen). It reports how much is
+      scratched and auto-reveals the rest at 60%. Resizing the window keeps your scratches.
+    </div>
+  </main>
+
+  <script type="module">
+    import { createScratcher } from './scratcher.js';
+
+    // A cheerful picture to hide, as an inline SVG so the page needs no image files.
+    const picture = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400">
+        <defs>
+          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#6a8dff"/><stop offset="1" stop-color="#c08cff"/>
+          </linearGradient>
+          <linearGradient id="hillA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5fe09c"/><stop offset="1" stop-color="#2fae6d"/></linearGradient>
+          <linearGradient id="hillB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3fc984"/><stop offset="1" stop-color="#1f8f57"/></linearGradient>
+        </defs>
+        <rect width="600" height="400" fill="url(#sky)"/>
+        <circle cx="470" cy="110" r="60" fill="#ffd86b"/>
+        <circle cx="470" cy="110" r="78" fill="#ffd86b" opacity="0.25"/>
+        <g fill="#fff" opacity="0.92">
+          <ellipse cx="140" cy="120" rx="58" ry="24"/><ellipse cx="175" cy="105" rx="42" ry="26"/><ellipse cx="105" cy="112" rx="34" ry="20"/>
+          <ellipse cx="360" cy="70" rx="44" ry="18"/><ellipse cx="385" cy="60" rx="30" ry="18"/>
+        </g>
+        <path d="M0 300 Q150 200 300 290 T600 260 V400 H0Z" fill="url(#hillA)"/>
+        <path d="M0 345 Q200 265 400 345 T600 325 V400 H0Z" fill="url(#hillB)"/>
+        <g transform="translate(262 236)">
+          <rect x="0" y="16" width="76" height="52" rx="7" fill="#8a5a2b"/>
+          <rect x="0" y="6" width="76" height="24" rx="9" fill="#a86f36"/>
+          <rect x="30" y="28" width="16" height="16" rx="3" fill="#ffd86b"/>
+          <rect x="0" y="30" width="76" height="4" fill="#6b4420"/>
+        </g>
+        <g fill="#fff" opacity="0.9">
+          <circle cx="60" cy="50" r="3"/><circle cx="240" cy="40" r="2.5"/><circle cx="520" cy="200" r="3"/><circle cx="40" cy="220" r="2"/>
+        </g>
+        <text x="300" y="72" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="36" font-weight="800" fill="#fff" stroke="#3a2a6a" stroke-width="1.5" paint-order="stroke">You found the treasure!</text>
+      </svg>`;
+    const card = document.getElementById('card');
+    card.style.backgroundImage = `url("data:image/svg+xml;utf8,${encodeURIComponent(picture.trim())}")`;
+
+    const scratcher = createScratcher(card, { brushRadius: 28, completeAt: 0.6, label: 'Scratch here!' });
+
+    const bar = document.getElementById('bar');
+    const pct = document.getElementById('pct');
+    const status = document.getElementById('status');
+    scratcher.addEventListener('progress', (e) => {
+      const percent = Math.round(e.detail.fraction * 100);
+      bar.style.width = `${percent}%`;
+      pct.textContent = `${percent}%`;
+    });
+    scratcher.addEventListener('complete', () => { status.textContent = 'Revealed! Hit Reset to scratch again.'; });
+    scratcher.addEventListener('reset', () => { status.textContent = ''; });
+
+    const brush = document.getElementById('brush');
+    const brushOut = document.getElementById('brush-out');
+    brush.addEventListener('input', () => {
+      scratcher.setBrush(Number(brush.value));
+      brushOut.textContent = brush.value;
+    });
+    document.getElementById('reset').addEventListener('click', () => scratcher.reset());
+    document.getElementById('reveal').addEventListener('click', () => scratcher.reveal());
+
+    window.__scratcher = scratcher; // for the console
+  </script>
+</body>
+</html>

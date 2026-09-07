@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "lab",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/serve.mjs"],
+      "port": 8080,
+      "autoPort": true
+    }
+  ]
+}
