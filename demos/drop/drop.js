@@ -1,18 +1,20 @@
 /**
  * Drop-to-win (Plinko) board: balls fall from the top, bounce through a
  * staggered peg field and land in prize slots along the bottom. The board's
- * width (columns / slots), height (peg rows) and the number of balls per drop
- * are all configurable. Simple 2D physics on a canvas — gravity, peg and wall
- * collisions with restitution and a little jitter so no two balls match.
+ * width (columns / slots), height (peg rows), the number of balls per drop and
+ * the drop position across the top are all configurable. Simple 2D physics on a
+ * canvas — gravity, peg and wall collisions with restitution and a little
+ * jitter so no two balls match.
  *
  * Usage:
  *   const game = createDropGame(mountEl, { width: 9, height: 12, ballCount: 25 });
  *   game.addEventListener('land', (e) => console.log(e.detail.slot, e.detail.value));
- *   game.addEventListener('idle', () => ...);   // all balls have landed
- *   game.drop();                                 // drop `ballCount` balls
+ *   game.drop();               // drop `ballCount` balls at the current drop position
+ *   game.drop(1, 0.2);         // drop one ball 20% across the top (e.g. from a click)
+ *   game.setDropX(0.75);       // move the release point to 75% across
  *   game.setConfig({ width: 7, height: 10 });
  *   game.reset();
- *   game.dropped; game.total; game.busy; game.destroy();
+ *   game.dropped; game.total; game.dropX; game.busy; game.destroy();
  */
 
 const TAU = Math.PI * 2;
@@ -50,6 +52,7 @@ export function createDropGame(container, options = {}) {
     width: 9, // number of slots / columns
     height: 12, // number of peg rows
     ballCount: 25, // balls per drop
+    dropX: 0.5, // fraction across the top where balls are released (0 = left, 1 = right)
     maxBalls: 300, // safety cap on live balls
     gravity: 2000,
     restitution: 0.5,
@@ -80,7 +83,7 @@ export function createDropGame(container, options = {}) {
   let dropped = 0;
   let total = 0;
   let maxCount = 0;
-  let spawnPending = 0;
+  let spawnQueue = []; // x-fractions of balls waiting to be released
   let spawnAccum = 0;
   let running = false;
   let rafId = 0;
@@ -134,10 +137,11 @@ export function createDropGame(container, options = {}) {
     draw();
   }
 
-  function spawnBall() {
+  function spawnBall(xFraction) {
     if (balls.length >= cfg.maxBalls) return;
+    const x = clamp(xFraction, 0, 1) * W + (Math.random() - 0.5) * binW * 0.5;
     balls.push({
-      x: W / 2 + (Math.random() - 0.5) * binW * 0.5,
+      x: clamp(x, ballR, W - ballR),
       y: pegAreaTop - ballR * 1.5,
       vx: (Math.random() - 0.5) * 30,
       vy: 0,
@@ -212,6 +216,26 @@ export function createDropGame(container, options = {}) {
     if (W <= 0) return;
     ctx.clearRect(0, 0, W, H);
 
+    // Drop marker showing where the next batch is released.
+    const mx = clamp(cfg.dropX, 0, 1) * W;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 212, 94, 0.28)';
+    ctx.setLineDash([4, 5]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(mx, 0);
+    ctx.lineTo(mx, pegAreaTop);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#ffd45e';
+    ctx.beginPath();
+    ctx.moveTo(mx, pegAreaTop - 3);
+    ctx.lineTo(mx - 6, pegAreaTop - 14);
+    ctx.lineTo(mx + 6, pegAreaTop - 14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
     // Slots (fill bars + heat + multiplier).
     const n = slots.length;
     for (let i = 0; i < n; i++) {
@@ -284,13 +308,12 @@ export function createDropGame(container, options = {}) {
     lastT = t;
     dt = clamp(dt, 0, 0.033);
 
-    // Staggered spawns.
-    if (spawnPending > 0) {
+    // Staggered spawns from the queue.
+    if (spawnQueue.length > 0) {
       spawnAccum += dt * 1000;
-      while (spawnAccum >= cfg.spawnInterval && spawnPending > 0) {
+      while (spawnAccum >= cfg.spawnInterval && spawnQueue.length > 0) {
         spawnAccum -= cfg.spawnInterval;
-        spawnBall();
-        spawnPending -= 1;
+        spawnBall(spawnQueue.shift());
       }
     }
 
@@ -299,7 +322,7 @@ export function createDropGame(container, options = {}) {
     for (let s = 0; s < sub; s++) integrate(dt / sub);
     draw();
 
-    if (balls.length > 0 || spawnPending > 0) {
+    if (balls.length > 0 || spawnQueue.length > 0) {
       rafId = requestAnimationFrame(loop);
     } else {
       running = false;
@@ -317,17 +340,23 @@ export function createDropGame(container, options = {}) {
     rafId = requestAnimationFrame(loop);
   }
 
-  function drop(n) {
+  function drop(n, xFraction) {
     const count = Number.isFinite(n) ? Math.round(n) : cfg.ballCount;
     if (count <= 0) return;
-    spawnPending += count;
-    emit('dropstart', { count });
+    const xf = Number.isFinite(xFraction) ? clamp(xFraction, 0, 1) : cfg.dropX;
+    for (let i = 0; i < count; i++) spawnQueue.push(xf);
+    emit('dropstart', { count, dropX: xf });
     startLoop();
+  }
+
+  function setDropX(fraction) {
+    cfg.dropX = clamp(Number(fraction) || 0, 0, 1);
+    draw();
   }
 
   function reset() {
     balls = [];
-    spawnPending = 0;
+    spawnQueue = [];
     dropped = 0;
     total = 0;
     for (const s of slots) { s.count = 0; s.flash = 0; }
@@ -339,7 +368,7 @@ export function createDropGame(container, options = {}) {
   function setConfig(next = {}) {
     Object.assign(cfg, next);
     balls = [];
-    spawnPending = 0;
+    spawnQueue = [];
     dropped = 0;
     total = 0;
     buildBoard();
@@ -356,6 +385,7 @@ export function createDropGame(container, options = {}) {
     drop,
     reset,
     setConfig,
+    setDropX,
     destroy() {
       cancelAnimationFrame(rafId);
       observer.disconnect();
@@ -365,6 +395,7 @@ export function createDropGame(container, options = {}) {
   Object.defineProperties(api, {
     dropped: { get: () => dropped, enumerable: true },
     total: { get: () => Math.round(total * 10) / 10, enumerable: true },
+    dropX: { get: () => cfg.dropX, enumerable: true },
     busy: { get: () => running, enumerable: true },
     slotValues: { get: () => slots.map((s) => s.value), enumerable: true },
   });

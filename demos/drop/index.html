@@ -85,11 +85,16 @@
           <input type="range" id="balls" min="1" max="100" step="1" value="25">
         </div>
 
+        <div class="setting">
+          <label for="dropx">Drop position <output id="dropx-out">Center</output></label>
+          <input type="range" id="dropx" min="0" max="100" step="1" value="50">
+        </div>
+
         <div class="actions">
           <button class="btn btn-ghost" id="reset" type="button">Reset</button>
           <button class="btn btn-primary" id="drop" type="button">Drop</button>
         </div>
-        <p class="muted" style="margin:0; font-size:0.82rem">Tip: click the board to drop a single ball.</p>
+        <p class="muted" style="margin:0; font-size:0.82rem">Tip: click anywhere on the board to drop a single ball there.</p>
       </aside>
     </div>
 
@@ -134,9 +139,21 @@
       game.setConfig({ ballCount: Number(ballsRange.value) });
     });
 
+    const dropxRange = document.getElementById('dropx');
+    const dropxOut = document.getElementById('dropx-out');
+    const dropLabel = (v) => (v === 50 ? 'Center' : v < 50 ? `${50 - v}% left` : `${v - 50}% right`);
+    dropxRange.addEventListener('input', () => {
+      const v = Number(dropxRange.value);
+      dropxOut.textContent = dropLabel(v);
+      game.setDropX(v / 100);
+    });
+
     document.getElementById('drop').addEventListener('click', () => game.drop());
     document.getElementById('reset').addEventListener('click', () => { game.reset(); refresh(); });
-    document.getElementById('stage').addEventListener('click', () => game.drop(1));
+    document.getElementById('stage').addEventListener('click', (e) => {
+      const rect = mount.getBoundingClientRect();
+      game.drop(1, (e.clientX - rect.left) / rect.width);
+    });
 
     game.addEventListener('land', refresh);
     game.addEventListener('idle', refresh);
