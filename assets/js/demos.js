@@ -34,4 +34,14 @@ export const demos = [
     path: 'demos/wheel/',
     tags: ['canvas', 'css transforms', 'configurable'],
   },
+  {
+    id: 'drop',
+    title: 'Drop to Win',
+    icon: '🔴',
+    tagline: 'Drop balls through a Plinko peg field into prize slots — set the width, height and ball count.',
+    description:
+      'A drop-to-win Plinko board with simple 2D physics: balls fall under gravity, bounce off a quincunx peg field and settle into prize slots that run hot toward the edges. Configure the board width, height and how many balls drop; land a few hundred to trace a bell curve.',
+    path: 'demos/drop/',
+    tags: ['canvas', 'physics', 'configurable'],
+  },
 ];

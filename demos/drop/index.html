@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1220">
+  <meta name="description" content="A drop-to-win Plinko board: drop balls through the pegs into prize slots. Set the board width, height and number of balls.">
+  <title>Drop to Win · Lab</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔴</text></svg>">
+  <link rel="stylesheet" href="../../assets/css/site.css">
+  <style>
+    .drop-wrap { width: min(940px, 100% - 2rem); margin-inline: auto; }
+
+    .layout { display: grid; grid-template-columns: 1fr minmax(240px, 300px); gap: 1.75rem; align-items: start; }
+    @media (max-width: 780px) { .layout { grid-template-columns: 1fr; } }
+
+    .stage {
+      position: relative;
+      width: min(100%, 460px);
+      aspect-ratio: 5 / 6;
+      margin-inline: auto;
+      border-radius: 16px;
+      overflow: hidden;
+      background: linear-gradient(180deg, #0a0e1c, #0c1122);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow), inset 0 2px 12px rgba(0,0,0,0.5);
+      cursor: pointer;
+    }
+    #board { position: absolute; inset: 0; }
+
+    .stats { display: flex; gap: 0.75rem; margin: 1rem auto 0; max-width: 460px; }
+    .stat { flex: 1; padding: 0.7rem 0.9rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; text-align: center; }
+    .stat dt { margin: 0; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+    .stat dd { margin: 0.2rem 0 0; font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+    .settings { display: flex; flex-direction: column; gap: 1.25rem; padding: 1.25rem; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; }
+    .settings h2 { margin: 0; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+    .setting label { display: flex; align-items: baseline; justify-content: space-between; font-weight: 600; margin-bottom: 0.4rem; }
+    .setting label output { color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+    .setting input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .actions { display: flex; gap: 0.75rem; }
+    .actions .btn { flex: 1; }
+
+    .demo-notes { margin: 2rem 0 3rem; padding: 1rem 1.25rem; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--muted); font-size: 0.9rem; }
+    .demo-notes code { color: var(--text); }
+  </style>
+</head>
+<body>
+  <header class="demo-header">
+    <div class="drop-wrap">
+      <a class="back-inline" href="../../">← Lab</a>
+      <p class="demo-kicker">Demo</p>
+      <h1>Drop to Win</h1>
+      <p class="tagline">A Plinko board: drop balls through the pegs and watch them scatter into the prize slots. Set the board's width, height and how many balls fall.</p>
+    </div>
+  </header>
+
+  <main class="drop-wrap">
+    <div class="layout">
+      <div>
+        <div class="stage" id="stage">
+          <div id="board" aria-label="Plinko board"></div>
+        </div>
+        <dl class="stats">
+          <div class="stat"><dt>Balls dropped</dt><dd id="dropped">0</dd></div>
+          <div class="stat"><dt>Total won</dt><dd id="total">0×</dd></div>
+        </dl>
+      </div>
+
+      <aside class="settings">
+        <h2>Board</h2>
+
+        <div class="setting">
+          <label for="width">Width <output id="width-out">9</output></label>
+          <input type="range" id="width" min="4" max="14" step="1" value="9">
+        </div>
+
+        <div class="setting">
+          <label for="height">Height <output id="height-out">12</output></label>
+          <input type="range" id="height" min="6" max="18" step="1" value="12">
+        </div>
+
+        <div class="setting">
+          <label for="balls">Balls per drop <output id="balls-out">25</output></label>
+          <input type="range" id="balls" min="1" max="100" step="1" value="25">
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-ghost" id="reset" type="button">Reset</button>
+          <button class="btn btn-primary" id="drop" type="button">Drop</button>
+        </div>
+        <p class="muted" style="margin:0; font-size:0.82rem">Tip: click the board to drop a single ball.</p>
+      </aside>
+    </div>
+
+    <div class="demo-notes">
+      The board lives in <code>drop.js</code> next to this page: a quincunx peg field on a canvas,
+      with balls integrated under gravity and bounced off pegs and walls (with restitution and a
+      dab of jitter so paths diverge). Balls settle into slots whose prize multipliers run hot
+      toward the edges. Width, height and the balls-per-drop all feed <code>setConfig()</code>.
+      Drop a few hundred and the counts trace a bell curve.
+    </div>
+  </main>
+
+  <script type="module">
+    import { createDropGame } from './drop.js';
+
+    const mount = document.getElementById('board');
+    const game = createDropGame(mount, { width: 9, height: 12, ballCount: 25 });
+
+    const droppedEl = document.getElementById('dropped');
+    const totalEl = document.getElementById('total');
+    const widthRange = document.getElementById('width');
+    const heightRange = document.getElementById('height');
+    const ballsRange = document.getElementById('balls');
+
+    function refresh() {
+      droppedEl.textContent = game.dropped;
+      totalEl.textContent = `${game.total}×`;
+    }
+
+    widthRange.addEventListener('input', () => {
+      document.getElementById('width-out').textContent = widthRange.value;
+      game.setConfig({ width: Number(widthRange.value) });
+      refresh();
+    });
+    heightRange.addEventListener('input', () => {
+      document.getElementById('height-out').textContent = heightRange.value;
+      game.setConfig({ height: Number(heightRange.value) });
+      refresh();
+    });
+    ballsRange.addEventListener('input', () => {
+      document.getElementById('balls-out').textContent = ballsRange.value;
+      game.setConfig({ ballCount: Number(ballsRange.value) });
+    });
+
+    document.getElementById('drop').addEventListener('click', () => game.drop());
+    document.getElementById('reset').addEventListener('click', () => { game.reset(); refresh(); });
+    document.getElementById('stage').addEventListener('click', () => game.drop(1));
+
+    game.addEventListener('land', refresh);
+    game.addEventListener('idle', refresh);
+
+    window.__drop = game; // for the console
+  </script>
+</body>
+</html>
