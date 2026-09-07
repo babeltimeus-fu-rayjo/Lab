@@ -54,6 +54,10 @@
         <input type="range" id="brush" min="8" max="60" step="1" value="28">
         <output id="brush-out">28</output>
       </label>
+      <label class="brush">Reveal at
+        <input type="range" id="threshold" min="20" max="100" step="5" value="60">
+        <output id="threshold-out">60%</output>
+      </label>
       <button class="btn btn-ghost" id="reset" type="button">Reset</button>
       <button class="btn btn-primary" id="reveal" type="button">Reveal all</button>
     </div>
@@ -62,7 +66,8 @@
     <div class="demo-notes">
       The mechanic lives in <code>scratcher.js</code> next to this page: it lays a canvas coating over
       any element and erases it along the pointer's path (mouse, touch and pen). It reports how much is
-      scratched and auto-reveals the rest at 60%. Resizing the window keeps your scratches.
+      scratched and auto-reveals the rest once you pass the <strong>Reveal at</strong> threshold
+      (adjustable above). Resizing the window keeps your scratches.
     </div>
   </main>
 
@@ -120,6 +125,12 @@
     brush.addEventListener('input', () => {
       scratcher.setBrush(Number(brush.value));
       brushOut.textContent = brush.value;
+    });
+    const threshold = document.getElementById('threshold');
+    const thresholdOut = document.getElementById('threshold-out');
+    threshold.addEventListener('input', () => {
+      scratcher.setThreshold(Number(threshold.value) / 100);
+      thresholdOut.textContent = `${threshold.value}%`;
     });
     document.getElementById('reset').addEventListener('click', () => scratcher.reset());
     document.getElementById('reveal').addEventListener('click', () => scratcher.reveal());

@@ -29,6 +29,7 @@
   <footer class="site-footer">
     <div class="wrap">
       <p>Hosted on GitHub Pages · <a href="https://github.com/babeltimeus-fu-rayjo/Lab">Source</a></p>
+      <p class="version" id="version"></p>
     </div>
   </footer>
 
@@ -69,6 +70,40 @@
     inner.append(el('div', 'demo-card-icon', '✨'), el('h3', null, 'More coming soon'), el('p', null, 'New demos land here as they are added to the collection.'));
     soon.append(inner);
     grid.append(soon);
+
+    // Show which build is live, so it's easy to tell versions apart.
+    // Locally the dev server serves a live version.json from the working tree;
+    // in production (no build step) we fall back to the GitHub commits API for
+    // the latest commit on main — which is what Pages deploys.
+    const REPO = 'https://github.com/babeltimeus-fu-rayjo/Lab';
+    const COMMITS_API = 'https://api.github.com/repos/babeltimeus-fu-rayjo/Lab/commits/main';
+    const fmt = (when) =>
+      when ? new Date(when).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '';
+    const show = (parts) => { document.getElementById('version').innerHTML = parts.join(' · '); };
+
+    fetch('version.json', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((v) => {
+        if (v && v.commit && v.commit !== 'unknown') {
+          const href = v.fullCommit ? `${REPO}/commit/${v.fullCommit}` : REPO;
+          const parts = [`Version <a href="${href}"><code>${v.commit}</code></a>`];
+          const when = fmt(v.buildTime || v.commitTime);
+          if (when) parts.push(`${v.local ? 'served' : 'deployed'} ${when}`);
+          if (v.dirty) parts.push('<span class="warn">uncommitted changes</span>');
+          show(parts);
+          return;
+        }
+        return fetch(COMMITS_API, { headers: { Accept: 'application/vnd.github+json' } })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((c) => {
+            if (!c || !c.sha) return;
+            const when = fmt(c.commit?.committer?.date || c.commit?.author?.date);
+            const parts = [`Version <a href="${REPO}/commit/${c.sha}"><code>${c.sha.slice(0, 7)}</code></a>`];
+            if (when) parts.push(`updated ${when}`);
+            show(parts);
+          });
+      })
+      .catch(() => {});
   </script>
 </body>
 </html>

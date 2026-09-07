@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1220">
+  <meta name="description" content="A configurable slot machine: set the number of reels, rows and symbols, then spin and watch the reels blur and settle.">
+  <title>Slot Machine · Lab</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎰</text></svg>">
+  <link rel="stylesheet" href="../../assets/css/site.css">
+  <style>
+    .slots-wrap { width: min(960px, 100% - 2rem); margin-inline: auto; }
+
+    .layout { display: grid; grid-template-columns: 1fr minmax(240px, 320px); gap: 1.75rem; align-items: start; }
+    @media (max-width: 780px) { .layout { grid-template-columns: 1fr; } }
+
+    /* ---- Cabinet ---- */
+    .machine {
+      background: linear-gradient(180deg, #2a1550, #1a1030 60%, #150c28);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 22px;
+      padding: 1rem 1rem 1.5rem;
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+    .marquee {
+      display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+      padding: 0.5rem 0 0.9rem;
+      font-weight: 900; letter-spacing: 0.35em; text-indent: 0.35em;
+      font-size: 1.1rem; color: #ffd45e;
+      text-shadow: 0 0 12px rgba(255,196,70,0.6);
+    }
+    .lights { display: flex; gap: 0.4rem; }
+    .lights i {
+      width: 0.6rem; height: 0.6rem; border-radius: 50%;
+      background: radial-gradient(circle at 40% 35%, #fff, #ff8fce 60%, #b0407f);
+      box-shadow: 0 0 8px rgba(255,143,206,0.8);
+      animation: blink 1.2s infinite;
+    }
+    .lights i:nth-child(2) { animation-delay: 0.2s; background: radial-gradient(circle at 40% 35%, #fff, #8fd0ff 60%, #4079b0); box-shadow: 0 0 8px rgba(143,208,255,0.8); }
+    .lights i:nth-child(3) { animation-delay: 0.4s; background: radial-gradient(circle at 40% 35%, #fff, #b0ff8f 60%, #59b040); box-shadow: 0 0 8px rgba(176,255,143,0.8); }
+    .lights i:nth-child(4) { animation-delay: 0.6s; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    .window {
+      position: relative;
+      padding: 0.9rem;
+      border-radius: 14px;
+      background: linear-gradient(180deg, #070912, #0c1020);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: inset 0 6px 18px rgba(0,0,0,0.6);
+      overflow: hidden;
+    }
+    #reels { position: relative; }
+    .window .slot-reel {
+      background: linear-gradient(180deg, #0a0e1c, #10162c);
+      border-radius: 8px;
+      -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 15%, #000 85%, transparent 100%);
+      mask-image: linear-gradient(180deg, transparent 0, #000 15%, #000 85%, transparent 100%);
+    }
+    .window .slot-reel.just-stopped { animation: reel-pop 0.45s ease; }
+    @keyframes reel-pop { 0% { filter: brightness(1); } 35% { filter: brightness(1.5); } 100% { filter: brightness(1); } }
+
+    .payline {
+      position: absolute; left: 0.4rem; right: 0.4rem; top: 50%;
+      height: var(--slot-cell, 84px);
+      transform: translateY(-50%);
+      pointer-events: none;
+      border-top: 2px solid rgba(255,212,94,0.55);
+      border-bottom: 2px solid rgba(255,212,94,0.55);
+      background: linear-gradient(90deg, rgba(255,212,94,0.08), rgba(255,120,180,0.06), rgba(255,212,94,0.08));
+    }
+    .payline.pulse { animation: payline-pulse 0.55s ease; }
+    @keyframes payline-pulse {
+      0%, 100% { box-shadow: none; border-color: rgba(255,212,94,0.55); }
+      40% { box-shadow: 0 0 24px rgba(255,212,94,0.5); border-color: rgba(255,212,94,0.95); }
+    }
+
+    .machine-actions { display: flex; justify-content: center; margin-top: 1.1rem; }
+    .machine-actions .btn { min-width: 160px; }
+    .spin-btn { font-size: 1.15rem; padding: 0.85rem 2rem; }
+
+    /* ---- Settings ---- */
+    .settings {
+      display: flex; flex-direction: column; gap: 1.25rem;
+      padding: 1.25rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+    }
+    .settings h2 { margin: 0; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+    .setting label { display: flex; align-items: baseline; justify-content: space-between; font-weight: 600; margin-bottom: 0.4rem; }
+    .setting label output { color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+    .setting input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+    .symbols-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+    .symbols-head .reset-syms { font-size: 0.75rem; font-weight: 600; color: var(--muted); background: none; border: 0; cursor: pointer; text-decoration: underline; }
+    .symbols-head .reset-syms:hover { color: var(--text); }
+    .symbol-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 0.5rem; margin-top: 0.6rem; }
+    .symbol-item { position: relative; }
+    .symbol-item input {
+      width: 100%; text-align: center;
+      padding: 0.5rem 0.3rem; font-size: 1.4rem; line-height: 1;
+      color: var(--text); background: var(--bg);
+      border: 1px solid var(--border); border-radius: 10px;
+    }
+    .symbol-item input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .symbol-item .remove {
+      position: absolute; top: -0.5rem; right: -0.5rem;
+      width: 1.3rem; height: 1.3rem; display: grid; place-items: center;
+      border-radius: 50%; border: 0; cursor: pointer;
+      background: var(--bad); color: #fff; font-size: 0.85rem; font-weight: 800; line-height: 1;
+    }
+    .symbol-item .remove:disabled { opacity: 0.3; cursor: not-allowed; }
+    .add-symbol { margin-top: 0.6rem; width: 100%; }
+    .toggle { display: flex; align-items: center; gap: 0.6rem; cursor: pointer; font-weight: 600; }
+    .toggle input { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+
+    .demo-notes { margin: 2rem 0 3rem; padding: 1rem 1.25rem; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--muted); font-size: 0.9rem; }
+    .demo-notes code { color: var(--text); }
+  </style>
+</head>
+<body>
+  <header class="demo-header">
+    <div class="slots-wrap">
+      <a class="back-inline" href="../../">← Lab</a>
+      <p class="demo-kicker">Demo</p>
+      <h1>Slot Machine</h1>
+      <p class="tagline">Reshape the machine — set the reels, the rows and the symbols — then pull the handle and watch it roll. All visual, no scoring.</p>
+    </div>
+  </header>
+
+  <main class="slots-wrap">
+    <div class="layout">
+      <div class="machine">
+        <div class="marquee">
+          <span class="lights"><i></i><i></i></span>
+          SLOTS
+          <span class="lights"><i></i><i></i></span>
+        </div>
+        <div class="window">
+          <div id="reels"><div class="payline" aria-hidden="true"></div></div>
+        </div>
+        <div class="machine-actions">
+          <button class="btn btn-primary spin-btn" id="spin" type="button">Spin</button>
+        </div>
+      </div>
+
+      <aside class="settings" id="settings">
+        <h2>Machine</h2>
+
+        <div class="setting">
+          <label for="reels-range">Reels <output id="reels-out">3</output></label>
+          <input type="range" id="reels-range" min="1" max="8" step="1" value="3">
+        </div>
+
+        <div class="setting">
+          <label for="rows-range">Rows per reel <output id="rows-out">3</output></label>
+          <input type="range" id="rows-range" min="1" max="5" step="1" value="3">
+        </div>
+
+        <div class="setting">
+          <div class="symbols-head">
+            <label style="margin:0; display:block" id="symbols-label">Symbols <output id="symbols-out">8</output></label>
+            <button class="reset-syms" id="reset-syms" type="button">Reset</button>
+          </div>
+          <div class="symbol-list" id="symbol-list" role="group" aria-labelledby="symbols-label"></div>
+          <button class="btn btn-ghost btn-sm add-symbol" id="add-symbol" type="button">+ Add symbol</button>
+        </div>
+
+        <label class="toggle"><input type="checkbox" id="auto"> Auto-spin</label>
+      </aside>
+    </div>
+
+    <div class="demo-notes">
+      The reels and the spin live in <code>slots.js</code> next to this page. Each reel builds a
+      strip of symbols, blurs, and eases to a stop under the payline with a staggered delay per
+      reel — driven entirely by a CSS <code>transform</code> transition. Everything on the right
+      calls <code>setConfig()</code> to rebuild the reels; there is no win logic at all.
+    </div>
+  </main>
+
+  <script type="module">
+    import { createSlotMachine } from './slots.js';
+
+    const DEFAULT_SYMBOLS = ['🍒', '🍋', '🍊', '🍇', '🔔', '⭐', '💎', '7️⃣'];
+    const MAX_SYMBOLS = 14;
+
+    const mount = document.getElementById('reels');
+    const slots = createSlotMachine(mount, { reels: 3, rows: 3, symbols: DEFAULT_SYMBOLS });
+
+    let symbols = DEFAULT_SYMBOLS.slice();
+
+    const spinBtn = document.getElementById('spin');
+    const autoBox = document.getElementById('auto');
+    const payline = mount.querySelector('.payline');
+    const reelsRange = document.getElementById('reels-range');
+    const rowsRange = document.getElementById('rows-range');
+    const reelsOut = document.getElementById('reels-out');
+    const rowsOut = document.getElementById('rows-out');
+    const symbolsOut = document.getElementById('symbols-out');
+    const list = document.getElementById('symbol-list');
+
+    // ---- symbol editor ----
+    function renderSymbols() {
+      symbolsOut.textContent = symbols.length;
+      list.replaceChildren();
+      symbols.forEach((sym, i) => {
+        const item = document.createElement('div');
+        item.className = 'symbol-item';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = sym;
+        input.maxLength = 4;
+        input.setAttribute('aria-label', `Symbol ${i + 1}`);
+        input.addEventListener('input', () => { symbols[i] = input.value; applySymbols(); });
+        const remove = document.createElement('button');
+        remove.className = 'remove';
+        remove.type = 'button';
+        remove.textContent = '×';
+        remove.setAttribute('aria-label', `Remove symbol ${i + 1}`);
+        remove.disabled = symbols.length <= 1;
+        remove.addEventListener('click', () => { symbols.splice(i, 1); renderSymbols(); applySymbols(); });
+        item.append(input, remove);
+        list.append(item);
+      });
+      document.getElementById('add-symbol').disabled = symbols.length >= MAX_SYMBOLS;
+    }
+
+    let applyTimer = 0;
+    function applySymbols() {
+      clearTimeout(applyTimer);
+      applyTimer = setTimeout(() => {
+        const clean = symbols.map((s) => s.trim()).filter(Boolean);
+        if (!clean.length) return; // keep the last good set until at least one symbol exists
+        slots.setConfig({ symbols: clean });
+      }, 200);
+    }
+
+    document.getElementById('add-symbol').addEventListener('click', () => {
+      if (symbols.length >= MAX_SYMBOLS) return;
+      symbols.push('❓');
+      renderSymbols();
+      applySymbols();
+    });
+    document.getElementById('reset-syms').addEventListener('click', () => {
+      symbols = DEFAULT_SYMBOLS.slice();
+      renderSymbols();
+      slots.setConfig({ symbols });
+    });
+
+    // ---- reels / rows ----
+    reelsRange.addEventListener('input', () => {
+      reelsOut.textContent = reelsRange.value;
+      slots.setConfig({ reels: Number(reelsRange.value) });
+    });
+    rowsRange.addEventListener('input', () => {
+      rowsOut.textContent = rowsRange.value;
+      slots.setConfig({ rows: Number(rowsRange.value) });
+    });
+
+    // ---- spin ----
+    function setBusy(busy) {
+      spinBtn.disabled = busy;
+      spinBtn.textContent = busy ? 'Spinning…' : 'Spin';
+      for (const el of document.querySelectorAll('#settings input, #settings button')) {
+        if (el !== autoBox) el.disabled = busy || (el.id === 'add-symbol' && symbols.length >= MAX_SYMBOLS);
+      }
+      if (!busy) renderSymbols(); // restore per-item disabled states
+    }
+
+    spinBtn.addEventListener('click', () => slots.spin());
+    slots.addEventListener('spinstart', () => setBusy(true));
+    slots.addEventListener('spinend', () => {
+      setBusy(false);
+      payline.classList.remove('pulse');
+      void payline.offsetWidth;
+      payline.classList.add('pulse');
+      if (autoBox.checked) setTimeout(() => { if (autoBox.checked && !slots.spinning) slots.spin(); }, 500);
+    });
+
+    autoBox.addEventListener('change', () => {
+      if (autoBox.checked && !slots.spinning) slots.spin();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); if (!slots.spinning) slots.spin(); }
+    });
+
+    renderSymbols();
+    window.__slots = slots; // for the console
+  </script>
+</body>
+</html>

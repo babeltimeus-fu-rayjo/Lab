@@ -241,6 +241,11 @@ export function createScratcher(container, options = {}) {
     setBrush(radius) {
       brush = Math.max(1, Number(radius) || brush);
     },
+    /** Fraction (0..1) that must be scratched before the rest auto-reveals. */
+    setThreshold(value) {
+      opts.completeAt = Math.max(0.05, Math.min(1, Number(value) || opts.completeAt));
+      if (!complete && fraction >= opts.completeAt) reveal(); // lowered below current progress
+    },
     destroy() {
       observer.disconnect();
       canvas.remove();

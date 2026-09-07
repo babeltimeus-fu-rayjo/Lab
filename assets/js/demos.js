@@ -14,4 +14,14 @@ export const demos = [
     path: 'demos/scratcher/',
     tags: ['canvas', 'pointer events', 'mouse · touch · pen'],
   },
+  {
+    id: 'slots',
+    title: 'Slot Machine',
+    icon: '🎰',
+    tagline: 'Set the reels, rows and symbols, then pull the handle and watch it roll.',
+    description:
+      'A configurable slot machine focused on the spin itself: choose how many reels, how many rows show per reel, and exactly which symbols appear. Reels blur, roll and settle under the payline with a staggered stop. No betting or scoring.',
+    path: 'demos/slots/',
+    tags: ['css transforms', 'animation', 'configurable'],
+  },
 ];
