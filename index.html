@@ -34,7 +34,7 @@
   </footer>
 
   <script type="module">
-    import { demos } from './assets/js/demos.js';
+    const { demos } = await import(`./assets/js/demos.js?v=${encodeURIComponent(document.lastModified)}`);
 
     const grid = document.getElementById('demo-grid');
 

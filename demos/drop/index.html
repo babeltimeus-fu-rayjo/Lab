@@ -115,7 +115,9 @@
   </main>
 
   <script type="module">
-    import { createDropGame } from './drop.js';
+    // Cache-bust the module against GitHub Pages' 10-min asset cache so a new
+    // deploy loads immediately (document.lastModified changes each deploy).
+    const { createDropGame } = await import(`./drop.js?v=${encodeURIComponent(document.lastModified)}`);
 
     const mount = document.getElementById('board');
     const game = createDropGame(mount, { width: 9, height: 12, ballCount: 25 });
