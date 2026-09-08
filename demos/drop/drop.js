@@ -155,8 +155,9 @@ export function createDropGame(container, options = {}) {
     if (balls.length >= cfg.maxBalls) return;
     const target = Number.isInteger(cfg.targetSlot) ? clamp(cfg.targetSlot, 0, slots.length - 1) : null;
     if (target != null) {
-      // Predetermined: replay a genuine natural run that happens to land in the target.
-      const path = findNaturalPath(target);
+      // Predetermined: replay a genuine run — dropped from the chosen position — that
+      // happens to land in the target, so the ball goes where it visibly bounces.
+      const path = findNaturalPath(target, clamp(xFraction, 0, 1));
       balls.push({ mode: 'play', path, t: 0, target, x: path[0].x, y: path[0].y, hue: Math.random() });
     } else {
       const x = clamp(xFraction, 0, 1) * W + (Math.random() - 0.5) * binW * 0.5;
@@ -171,11 +172,16 @@ export function createDropGame(container, options = {}) {
     }
   }
 
-  /** Simulate one ball headlessly with a seeded RNG, recording its path (fixed step). */
-  function simulatePath(baseXf, seed) {
+  /**
+   * Simulate one ball headlessly with a seeded RNG, recording its path (fixed step).
+   * `biasC` (0 = pure natural) gently pulls the ball toward the target column so a
+   * far-from-the-drop target becomes reachable while the ball still bounces off pegs.
+   */
+  function simulatePath(baseXf, seed, target, biasC) {
     const rng = mulberry32(seed);
     const g = cfg.gravity;
     const e = cfg.restitution;
+    const targetX = (target + 0.5) * binW;
     let x = clamp(baseXf * W + (rng() - 0.5) * binW * 0.5, ballR, W - ballR);
     let y = pegAreaTop - ballR * 1.5;
     let vx = (rng() - 0.5) * 30;
@@ -185,6 +191,7 @@ export function createDropGame(container, options = {}) {
       vy += g * FIXED_DT;
       x += vx * FIXED_DT;
       y += vy * FIXED_DT;
+      if (biasC) vx += (targetX - x) * biasC * FIXED_DT;
       for (const p of pegs) {
         const dx = x - p.x;
         const dy = y - p.y;
@@ -214,14 +221,20 @@ export function createDropGame(container, options = {}) {
     return { slot: clamp(Math.floor(x / binW), 0, slots.length - 1), path };
   }
 
-  /** Find a natural path that lands in `target` by dropping over that column and trying seeds. */
-  function findNaturalPath(target) {
-    const baseXf = (target + 0.5) / slots.length;
+  /**
+   * Find a natural path from the chosen drop column that lands in `target`, trying
+   * seeds. Pure physics first (looks fully natural); if the target is too far from the
+   * drop column to reach naturally, a gentle then firmer lean is allowed.
+   */
+  function findNaturalPath(target, dropXf) {
+    const baseXf = clamp(dropXf, 0, 1);
     let best = null;
-    for (let tries = 0; tries < 4000; tries++) {
-      const r = simulatePath(baseXf, (Math.random() * 4294967296) >>> 0);
-      if (r.slot === target) return r.path;
-      if (!best || Math.abs(r.slot - target) < Math.abs(best.slot - target)) best = r;
+    for (const [biasC, budget] of [[0, 4000], [4, 3000], [10, 4000]]) {
+      for (let tries = 0; tries < budget; tries++) {
+        const r = simulatePath(baseXf, (Math.random() * 4294967296) >>> 0, target, biasC);
+        if (r.slot === target) return r.path;
+        if (!best || Math.abs(r.slot - target) < Math.abs(best.slot - target)) best = r;
+      }
     }
     // Astronomically rare fallback (a target column that never lands in itself): ease the
     // closest path's tail into the target bin so the result is still guaranteed.
@@ -326,11 +339,8 @@ export function createDropGame(container, options = {}) {
     if (W <= 0) return;
     ctx.clearRect(0, 0, W, H);
 
-    // Drop marker: over the target column when a result is forced, else the drop position.
-    const markerFrac = Number.isInteger(cfg.targetSlot)
-      ? (clamp(cfg.targetSlot, 0, slots.length - 1) + 0.5) / slots.length
-      : clamp(cfg.dropX, 0, 1);
-    const mx = markerFrac * W;
+    // Drop marker showing where the next batch is released.
+    const mx = clamp(cfg.dropX, 0, 1) * W;
     ctx.save();
     ctx.strokeStyle = 'rgba(255, 212, 94, 0.28)';
     ctx.setLineDash([4, 5]);
