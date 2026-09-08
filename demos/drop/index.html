@@ -158,7 +158,10 @@
 
     const resultSelect = document.getElementById('result');
     function applyResult() {
-      game.setConfig({ targetSlot: resultSelect.value === 'random' ? null : Number(resultSelect.value) });
+      const forced = resultSelect.value !== 'random';
+      game.setConfig({ targetSlot: forced ? Number(resultSelect.value) : null });
+      dropxRange.disabled = forced; // a forced ball drops over its target column, so drop position is moot
+      dropxRange.closest('.setting').style.opacity = forced ? '0.5' : '';
       refresh();
     }
     function renderResultOptions() {

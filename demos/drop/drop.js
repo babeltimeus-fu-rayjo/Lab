@@ -47,6 +47,19 @@ function multipliers(n) {
   });
 }
 
+// Small seeded PRNG so a predetermined ball can replay one specific NATURAL run.
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const FIXED_DT = 1 / 300; // physics step used to pre-compute a predetermined ball's path
+
 export function createDropGame(container, options = {}) {
   const cfg = {
     width: 9, // number of slots / columns
@@ -140,20 +153,91 @@ export function createDropGame(container, options = {}) {
 
   function spawnBall(xFraction) {
     if (balls.length >= cfg.maxBalls) return;
-    const x = clamp(xFraction, 0, 1) * W + (Math.random() - 0.5) * binW * 0.5;
-    balls.push({
-      x: clamp(x, ballR, W - ballR),
-      y: pegAreaTop - ballR * 1.5,
-      vx: (Math.random() - 0.5) * 30,
-      vy: 0,
-      hue: Math.random(),
-      target: Number.isInteger(cfg.targetSlot) ? clamp(cfg.targetSlot, 0, slots.length - 1) : null,
-    });
+    const target = Number.isInteger(cfg.targetSlot) ? clamp(cfg.targetSlot, 0, slots.length - 1) : null;
+    if (target != null) {
+      // Predetermined: replay a genuine natural run that happens to land in the target.
+      const path = findNaturalPath(target);
+      balls.push({ mode: 'play', path, t: 0, target, x: path[0].x, y: path[0].y, hue: Math.random() });
+    } else {
+      const x = clamp(xFraction, 0, 1) * W + (Math.random() - 0.5) * binW * 0.5;
+      balls.push({
+        mode: 'physics',
+        x: clamp(x, ballR, W - ballR),
+        y: pegAreaTop - ballR * 1.5,
+        vx: (Math.random() - 0.5) * 30,
+        vy: 0,
+        hue: Math.random(),
+      });
+    }
   }
 
-  function landBall(b, i) {
-    let idx = Math.floor(b.x / binW);
-    idx = clamp(idx, 0, slots.length - 1);
+  /** Simulate one ball headlessly with a seeded RNG, recording its path (fixed step). */
+  function simulatePath(baseXf, seed) {
+    const rng = mulberry32(seed);
+    const g = cfg.gravity;
+    const e = cfg.restitution;
+    let x = clamp(baseXf * W + (rng() - 0.5) * binW * 0.5, ballR, W - ballR);
+    let y = pegAreaTop - ballR * 1.5;
+    let vx = (rng() - 0.5) * 30;
+    let vy = 0;
+    const path = [{ x, y }];
+    for (let step = 0; step < 3000; step++) {
+      vy += g * FIXED_DT;
+      x += vx * FIXED_DT;
+      y += vy * FIXED_DT;
+      for (const p of pegs) {
+        const dx = x - p.x;
+        const dy = y - p.y;
+        const min = ballR + pegR;
+        if (Math.abs(dx) > min || Math.abs(dy) > min) continue;
+        const dist = Math.hypot(dx, dy) || 0.0001;
+        if (dist < min) {
+          const nx = dx / dist;
+          const ny = dy / dist;
+          x = p.x + nx * min;
+          y = p.y + ny * min;
+          const vn = vx * nx + vy * ny;
+          if (vn < 0) { vx -= (1 + e) * vn * nx; vy -= (1 + e) * vn * ny; }
+          vx += (rng() - 0.5) * 40;
+        }
+      }
+      if (x < ballR) { x = ballR; vx = Math.abs(vx) * e; }
+      if (x > W - ballR) { x = W - ballR; vx = -Math.abs(vx) * e; }
+      if (y > pegAreaBottom - ballR) {
+        for (const d of dividers) {
+          if (Math.abs(x - d) < ballR) { x = d + Math.sign(x - d || 1) * ballR; vx = -vx * e * 0.5; }
+        }
+      }
+      path.push({ x, y });
+      if (y + ballR >= H) return { slot: clamp(Math.floor(x / binW), 0, slots.length - 1), path };
+    }
+    return { slot: clamp(Math.floor(x / binW), 0, slots.length - 1), path };
+  }
+
+  /** Find a natural path that lands in `target` by dropping over that column and trying seeds. */
+  function findNaturalPath(target) {
+    const baseXf = (target + 0.5) / slots.length;
+    let best = null;
+    for (let tries = 0; tries < 4000; tries++) {
+      const r = simulatePath(baseXf, (Math.random() * 4294967296) >>> 0);
+      if (r.slot === target) return r.path;
+      if (!best || Math.abs(r.slot - target) < Math.abs(best.slot - target)) best = r;
+    }
+    // Astronomically rare fallback (a target column that never lands in itself): ease the
+    // closest path's tail into the target bin so the result is still guaranteed.
+    const path = best.path;
+    const targetX = (target + 0.5) * binW;
+    const tail = Math.min(12, path.length);
+    for (let k = 0; k < tail; k++) {
+      const idx = path.length - tail + k;
+      const f = tail > 1 ? k / (tail - 1) : 1;
+      path[idx] = { x: path[idx].x + (targetX - path[idx].x) * f, y: path[idx].y };
+    }
+    return path;
+  }
+
+  function landBall(b, i, slotOverride) {
+    const idx = slotOverride != null ? slotOverride : clamp(Math.floor(b.x / binW), 0, slots.length - 1);
     const slot = slots[idx];
     slot.count += 1;
     slot.flash = 1;
@@ -169,17 +253,10 @@ export function createDropGame(container, options = {}) {
     const e = cfg.restitution;
     for (let i = balls.length - 1; i >= 0; i--) {
       const b = balls[i];
+      if (b.mode !== 'physics') continue; // predetermined balls follow a pre-computed path
       b.vy += g * dt;
       b.x += b.vx * dt;
       b.y += b.vy * dt;
-
-      // Steer predetermined balls toward their target column — gentle up top so it
-      // still reads as bouncing, firmer lower down. The slot region below guarantees it.
-      if (b.target != null) {
-        const targetX = (b.target + 0.5) * binW;
-        const depth = clamp((b.y - pegAreaTop) / Math.max(1, pegAreaBottom - pegAreaTop), 0, 1);
-        b.vx += (targetX - b.x) * (2 + depth * 5) * dt;
-      }
 
       // Pegs (only those on nearby rows matter, but the field is small).
       for (const p of pegs) {
@@ -207,20 +284,12 @@ export function createDropGame(container, options = {}) {
       if (b.x < ballR) { b.x = ballR; b.vx = Math.abs(b.vx) * e; }
       if (b.x > W - ballR) { b.x = W - ballR; b.vx = -Math.abs(b.vx) * e; }
 
-      // Below the pegs: a predetermined ball is eased firmly into its target bin
-      // (guaranteeing the result); otherwise the dividers guide it into whatever bin.
+      // Slot dividers guide the ball into whatever bin it arrives over.
       if (b.y > pegAreaBottom - ballR) {
-        if (b.target != null) {
-          const targetX = (b.target + 0.5) * binW;
-          b.x += (targetX - b.x) * 0.35;
-          b.x = clamp(b.x, b.target * binW + ballR, (b.target + 1) * binW - ballR);
-          b.vx *= 0.4;
-        } else {
-          for (const dxWall of dividers) {
-            if (Math.abs(b.x - dxWall) < ballR) {
-              b.x = dxWall + Math.sign(b.x - dxWall || 1) * ballR;
-              b.vx = -b.vx * e * 0.5;
-            }
+        for (const dxWall of dividers) {
+          if (Math.abs(b.x - dxWall) < ballR) {
+            b.x = dxWall + Math.sign(b.x - dxWall || 1) * ballR;
+            b.vx = -b.vx * e * 0.5;
           }
         }
       }
@@ -230,12 +299,38 @@ export function createDropGame(container, options = {}) {
     }
   }
 
+  /** Advance predetermined balls along their pre-computed path (independent of frame rate). */
+  function advancePlayback(dt) {
+    for (let i = balls.length - 1; i >= 0; i--) {
+      const b = balls[i];
+      if (b.mode !== 'play') continue;
+      b.t += dt;
+      const f = b.t / FIXED_DT;
+      if (f >= b.path.length - 1) {
+        const last = b.path[b.path.length - 1];
+        b.x = last.x;
+        b.y = last.y;
+        landBall(b, i, b.target);
+      } else {
+        const i0 = Math.floor(f);
+        const frac = f - i0;
+        const a = b.path[i0];
+        const c = b.path[i0 + 1];
+        b.x = a.x + (c.x - a.x) * frac;
+        b.y = a.y + (c.y - a.y) * frac;
+      }
+    }
+  }
+
   function draw() {
     if (W <= 0) return;
     ctx.clearRect(0, 0, W, H);
 
-    // Drop marker showing where the next batch is released.
-    const mx = clamp(cfg.dropX, 0, 1) * W;
+    // Drop marker: over the target column when a result is forced, else the drop position.
+    const markerFrac = Number.isInteger(cfg.targetSlot)
+      ? (clamp(cfg.targetSlot, 0, slots.length - 1) + 0.5) / slots.length
+      : clamp(cfg.dropX, 0, 1);
+    const mx = markerFrac * W;
     ctx.save();
     ctx.strokeStyle = 'rgba(255, 212, 94, 0.28)';
     ctx.setLineDash([4, 5]);
@@ -338,6 +433,7 @@ export function createDropGame(container, options = {}) {
     // Sub-step the integration so fast balls never tunnel through pegs.
     const sub = cfg.substeps;
     for (let s = 0; s < sub; s++) integrate(dt / sub);
+    advancePlayback(dt);
     draw();
 
     if (balls.length > 0 || spawnQueue.length > 0) {
