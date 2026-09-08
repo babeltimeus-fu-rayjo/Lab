@@ -114,6 +114,9 @@
     .add-symbol { margin-top: 0.6rem; width: 100%; }
     .toggle { display: flex; align-items: center; gap: 0.6rem; cursor: pointer; font-weight: 600; }
     .toggle input { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+    .result-reels { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 0.4rem; margin-top: 0.1rem; }
+    .result-reels select { width: 100%; padding: 0.35rem 0.15rem; font-size: 1.15rem; text-align: center; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+    .result-reels select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
     .demo-notes { margin: 2rem 0 3rem; padding: 1rem 1.25rem; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--muted); font-size: 0.9rem; }
     .demo-notes code { color: var(--text); }
@@ -167,6 +170,11 @@
           <button class="btn btn-ghost btn-sm add-symbol" id="add-symbol" type="button">+ Add symbol</button>
         </div>
 
+        <div class="setting">
+          <label class="toggle" style="margin-bottom:0.5rem"><input type="checkbox" id="force"> Predetermined result</label>
+          <div class="result-reels" id="result-reels" role="group" aria-label="Result per reel (lands on the centre payline)" hidden></div>
+        </div>
+
         <label class="toggle"><input type="checkbox" id="auto"> Auto-spin</label>
       </aside>
     </div>
@@ -199,6 +207,8 @@
     const rowsOut = document.getElementById('rows-out');
     const symbolsOut = document.getElementById('symbols-out');
     const list = document.getElementById('symbol-list');
+    const forceBox = document.getElementById('force');
+    const resultReels = document.getElementById('result-reels');
 
     // ---- symbol editor ----
     function renderSymbols() {
@@ -233,6 +243,7 @@
         const clean = symbols.map((s) => s.trim()).filter(Boolean);
         if (!clean.length) return; // keep the last good set until at least one symbol exists
         slots.setConfig({ symbols: clean });
+        if (forceBox.checked) { renderResultReels(); applyResult(); }
       }, 200);
     }
 
@@ -246,12 +257,37 @@
       symbols = DEFAULT_SYMBOLS.slice();
       renderSymbols();
       slots.setConfig({ symbols });
+      if (forceBox.checked) { renderResultReels(); applyResult(); }
     });
+
+    // ---- predetermined result ----
+    function renderResultReels() {
+      if (!forceBox.checked) { resultReels.hidden = true; resultReels.replaceChildren(); return; }
+      resultReels.hidden = false;
+      const clean = symbols.map((s) => s.trim()).filter(Boolean);
+      const reels = Number(reelsRange.value);
+      const prev = [...resultReels.querySelectorAll('select')].map((s) => s.value);
+      resultReels.replaceChildren();
+      for (let i = 0; i < reels; i++) {
+        const sel = document.createElement('select');
+        sel.setAttribute('aria-label', `Reel ${i + 1} result`);
+        for (const sym of clean) sel.append(new Option(sym, sym));
+        sel.value = clean.includes(prev[i]) ? prev[i] : clean[i % clean.length];
+        sel.addEventListener('change', applyResult);
+        resultReels.append(sel);
+      }
+    }
+    function applyResult() {
+      slots.setConfig({ result: forceBox.checked ? [...resultReels.querySelectorAll('select')].map((s) => s.value) : null });
+    }
+    forceBox.addEventListener('change', () => { renderResultReels(); applyResult(); });
 
     // ---- reels / rows ----
     reelsRange.addEventListener('input', () => {
       reelsOut.textContent = reelsRange.value;
       slots.setConfig({ reels: Number(reelsRange.value) });
+      renderResultReels();
+      applyResult();
     });
     rowsRange.addEventListener('input', () => {
       rowsOut.textContent = rowsRange.value;
@@ -262,7 +298,7 @@
     function setBusy(busy) {
       spinBtn.disabled = busy;
       spinBtn.textContent = busy ? 'Spinning…' : 'Spin';
-      for (const el of document.querySelectorAll('#settings input, #settings button')) {
+      for (const el of document.querySelectorAll('#settings input, #settings button, #settings select')) {
         if (el !== autoBox) el.disabled = busy || (el.id === 'add-symbol' && symbols.length >= MAX_SYMBOLS);
       }
       if (!busy) renderSymbols(); // restore per-item disabled states

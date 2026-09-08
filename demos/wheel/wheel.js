@@ -180,7 +180,7 @@ export function createWheel(container, options = {}) {
     return segs.length - 1;
   }
 
-  function spin() {
+  function spin(targetSlice) {
     if (spinning) return;
     spinning = true;
     highlight = -1;
@@ -191,12 +191,22 @@ export function createWheel(container, options = {}) {
     const speed = Math.max(1, Math.min(10, cfg.spinSpeed));
     const turns = 3 + speed; // faster → more full turns
     const duration = Math.max(2600, Math.round(6800 - speed * 400)); // faster → shorter
-    const target = rotation + turns * 360 + Math.random() * 360;
+    const base = rotation + turns * 360;
+
+    // A predetermined slice lands the pointer at that slice's centre; otherwise random.
+    let finalRot;
+    if (Number.isInteger(targetSlice) && targetSlice >= 0 && targetSlice < weights.length) {
+      const seg = bounds()[targetSlice];
+      const desired = mod(-(seg[0] + seg[1]) / 2, 360); // pointer angle == slice centre
+      finalRot = base + mod(desired - base, 360);
+    } else {
+      finalRot = base + Math.random() * 360;
+    }
 
     canvas.style.transition = `transform ${duration}ms cubic-bezier(0.15, 0.78, 0.12, 1)`;
     void canvas.offsetWidth; // apply the (possibly just-cleared) transition
-    canvas.style.transform = `rotate(${target}deg)`;
-    rotation = target;
+    canvas.style.transform = `rotate(${finalRot}deg)`;
+    rotation = finalRot;
 
     let done = false;
     const settle = () => {

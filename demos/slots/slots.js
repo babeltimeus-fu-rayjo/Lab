@@ -55,6 +55,7 @@ export function createSlotMachine(container, options = {}) {
     reels: 3,
     rows: 3,
     symbols: ['🍒', '🍋', '🍊', '🍇', '🔔', '⭐', '💎', '7️⃣'],
+    result: null, // optional array: forced centre-row symbol per reel (null entries stay random)
     baseDuration: 1500, // ms for the first reel
     stagger: 340, // extra ms per reel (scaled down for many reels)
     minCell: 44,
@@ -118,6 +119,8 @@ export function createSlotMachine(container, options = {}) {
       const fill = 14 + index * 5 + ((Math.random() * 6) | 0);
 
       const finalSyms = pick(rows);
+      const forced = cfg.result && cfg.result[index];
+      if (forced != null && forced !== '') finalSyms[Math.floor(rows / 2)] = forced; // land on the payline (centre row)
       const cells = [...reel.current, ...pick(fill), ...finalSyms, randSym()]; // trailing buffer
       const strip = reel.stripEl;
 
@@ -170,6 +173,7 @@ export function createSlotMachine(container, options = {}) {
   function setConfig(next = {}) {
     if (spinning) return;
     if (Array.isArray(next.symbols)) next = { ...next, symbols: next.symbols.slice() };
+    if (Array.isArray(next.result)) next = { ...next, result: next.result.slice() };
     Object.assign(cfg, next);
     if (!cfg.symbols.length) cfg.symbols = ['❔'];
     cfg.reels = Math.max(1, Math.round(cfg.reels));

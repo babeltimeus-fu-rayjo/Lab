@@ -38,6 +38,8 @@
     .setting label { display: flex; align-items: baseline; justify-content: space-between; font-weight: 600; margin-bottom: 0.4rem; }
     .setting label output { color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
     .setting input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .setting select { width: 100%; padding: 0.5rem 0.6rem; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }
+    .setting select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
     .actions { display: flex; gap: 0.75rem; }
     .actions .btn { flex: 1; }
 
@@ -90,6 +92,11 @@
           <input type="range" id="dropx" min="0" max="100" step="1" value="50">
         </div>
 
+        <div class="setting">
+          <label for="result">Predetermined result</label>
+          <select id="result"></select>
+        </div>
+
         <div class="actions">
           <button class="btn btn-ghost" id="reset" type="button">Reset</button>
           <button class="btn btn-primary" id="drop" type="button">Drop</button>
@@ -127,6 +134,7 @@
     widthRange.addEventListener('input', () => {
       document.getElementById('width-out').textContent = widthRange.value;
       game.setConfig({ width: Number(widthRange.value) });
+      renderResultOptions();
       refresh();
     });
     heightRange.addEventListener('input', () => {
@@ -148,6 +156,21 @@
       game.setDropX(v / 100);
     });
 
+    const resultSelect = document.getElementById('result');
+    function applyResult() {
+      game.setConfig({ targetSlot: resultSelect.value === 'random' ? null : Number(resultSelect.value) });
+      refresh();
+    }
+    function renderResultOptions() {
+      const prev = resultSelect.value;
+      const n = game.slotValues.length;
+      resultSelect.replaceChildren(new Option('Random', 'random'));
+      game.slotValues.forEach((v, i) => resultSelect.append(new Option(`Slot ${i + 1} (${v}×)`, String(i))));
+      resultSelect.value = prev === 'random' || (prev !== '' && Number(prev) >= 0 && Number(prev) < n) ? prev : 'random';
+      applyResult();
+    }
+    resultSelect.addEventListener('change', applyResult);
+
     document.getElementById('drop').addEventListener('click', () => game.drop());
     document.getElementById('reset').addEventListener('click', () => { game.reset(); refresh(); });
     document.getElementById('stage').addEventListener('click', (e) => {
@@ -158,6 +181,7 @@
     game.addEventListener('land', refresh);
     game.addEventListener('idle', refresh);
 
+    renderResultOptions();
     window.__drop = game; // for the console
   </script>
 </body>

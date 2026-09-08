@@ -10,9 +10,9 @@ No build step, no dependencies — plain HTML, CSS and ES modules, hosted on Git
 | Demo | What it shows |
 | --- | --- |
 | [Scratch Card](demos/scratcher/) | A canvas foil coating you rub away with the pointer (mouse, touch, pen) to reveal a picture. Tracks scratch progress and auto-reveals past an adjustable threshold. |
-| [Slot Machine](demos/slots/) | A configurable slot machine — set the number of reels, the rows per reel and the exact symbols, then spin. Reels blur, roll and settle with a staggered stop. Purely visual, no scoring. |
-| [Spinning Wheel](demos/wheel/) | A configurable prize wheel — set the number of slices, each slice's width and the spin speed, then flick it. It eases to a stop under the pointer and reports the slice; a wider slice wins more often. |
-| [Drop to Win](demos/drop/) | A Plinko board with simple 2D physics — balls fall through a peg field into prize slots that run hot toward the edges. Set the board width, height, how many balls drop and where they're released (or click the board to aim); land a few hundred to trace a bell curve. |
+| [Slot Machine](demos/slots/) | A configurable slot machine — set the number of reels, the rows per reel and the exact symbols, then spin. Reels blur, roll and settle with a staggered stop. Purely visual, no scoring; optionally force a predetermined result on the centre payline. |
+| [Spinning Wheel](demos/wheel/) | A configurable prize wheel — set the number of slices, each slice's width and the spin speed, then flick it. It eases to a stop under the pointer and reports the slice; a wider slice wins more often. Optionally force it to land on a chosen slice. |
+| [Drop to Win](demos/drop/) | A Plinko board with simple 2D physics — balls fall through a peg field into prize slots that run hot toward the edges. Set the board width, height, how many balls drop and where they're released (or click the board to aim); land a few hundred to trace a bell curve. Optionally rig every ball to land in a chosen slot. |
 
 ## Structure
 

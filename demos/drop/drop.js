@@ -53,6 +53,7 @@ export function createDropGame(container, options = {}) {
     height: 12, // number of peg rows
     ballCount: 25, // balls per drop
     dropX: 0.5, // fraction across the top where balls are released (0 = left, 1 = right)
+    targetSlot: null, // predetermined landing slot index, or null for natural physics
     maxBalls: 300, // safety cap on live balls
     gravity: 2000,
     restitution: 0.5,
@@ -146,6 +147,7 @@ export function createDropGame(container, options = {}) {
       vx: (Math.random() - 0.5) * 30,
       vy: 0,
       hue: Math.random(),
+      target: Number.isInteger(cfg.targetSlot) ? clamp(cfg.targetSlot, 0, slots.length - 1) : null,
     });
   }
 
@@ -170,6 +172,14 @@ export function createDropGame(container, options = {}) {
       b.vy += g * dt;
       b.x += b.vx * dt;
       b.y += b.vy * dt;
+
+      // Steer predetermined balls toward their target column — gentle up top so it
+      // still reads as bouncing, firmer lower down. The slot region below guarantees it.
+      if (b.target != null) {
+        const targetX = (b.target + 0.5) * binW;
+        const depth = clamp((b.y - pegAreaTop) / Math.max(1, pegAreaBottom - pegAreaTop), 0, 1);
+        b.vx += (targetX - b.x) * (2 + depth * 5) * dt;
+      }
 
       // Pegs (only those on nearby rows matter, but the field is small).
       for (const p of pegs) {
@@ -197,12 +207,20 @@ export function createDropGame(container, options = {}) {
       if (b.x < ballR) { b.x = ballR; b.vx = Math.abs(b.vx) * e; }
       if (b.x > W - ballR) { b.x = W - ballR; b.vx = -Math.abs(b.vx) * e; }
 
-      // Slot dividers guide balls into a bin near the bottom.
+      // Below the pegs: a predetermined ball is eased firmly into its target bin
+      // (guaranteeing the result); otherwise the dividers guide it into whatever bin.
       if (b.y > pegAreaBottom - ballR) {
-        for (const dxWall of dividers) {
-          if (Math.abs(b.x - dxWall) < ballR) {
-            b.x = dxWall + Math.sign(b.x - dxWall || 1) * ballR;
-            b.vx = -b.vx * e * 0.5;
+        if (b.target != null) {
+          const targetX = (b.target + 0.5) * binW;
+          b.x += (targetX - b.x) * 0.35;
+          b.x = clamp(b.x, b.target * binW + ballR, (b.target + 1) * binW - ballR);
+          b.vx *= 0.4;
+        } else {
+          for (const dxWall of dividers) {
+            if (Math.abs(b.x - dxWall) < ballR) {
+              b.x = dxWall + Math.sign(b.x - dxWall || 1) * ballR;
+              b.vx = -b.vx * e * 0.5;
+            }
           }
         }
       }
@@ -396,6 +414,7 @@ export function createDropGame(container, options = {}) {
     dropped: { get: () => dropped, enumerable: true },
     total: { get: () => Math.round(total * 10) / 10, enumerable: true },
     dropX: { get: () => cfg.dropX, enumerable: true },
+    targetSlot: { get: () => cfg.targetSlot, enumerable: true },
     busy: { get: () => running, enumerable: true },
     slotValues: { get: () => slots.map((s) => s.value), enumerable: true },
   });

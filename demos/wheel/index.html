@@ -60,6 +60,8 @@
     .setting label { display: flex; align-items: baseline; justify-content: space-between; font-weight: 600; margin-bottom: 0.4rem; }
     .setting label output { color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
     .setting input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .setting select { width: 100%; padding: 0.5rem 0.6rem; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }
+    .setting select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
     .widths-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
     .widths-head .equal { font-size: 0.75rem; font-weight: 600; color: var(--muted); background: none; border: 0; cursor: pointer; text-decoration: underline; }
@@ -112,6 +114,11 @@
         <div class="setting">
           <label for="speed">Spin speed <output id="speed-out">5</output></label>
           <input type="range" id="speed" min="1" max="10" step="1" value="5">
+        </div>
+
+        <div class="setting">
+          <label for="force-result">Predetermined result</label>
+          <select id="force-result"></select>
         </div>
 
         <div class="setting">
@@ -197,6 +204,7 @@
       const next = Array.from({ length: slices }, (_, i) => weights[i] ?? 1);
       weights = next;
       renderWidthList();
+      renderResultOptions();
       wheel.setConfig({ slices, weights });
     });
 
@@ -211,7 +219,16 @@
       wheel.setConfig({ weights });
     });
 
-    function spin() { if (!wheel.spinning) wheel.spin(); }
+    const resultSelect = document.getElementById('force-result');
+    function renderResultOptions() {
+      const prev = resultSelect.value;
+      resultSelect.replaceChildren(new Option('Random', 'random'));
+      for (let i = 0; i < slices; i++) resultSelect.append(new Option(`Slice ${i + 1}`, String(i)));
+      resultSelect.value = prev === 'random' || (prev !== '' && Number(prev) >= 0 && Number(prev) < slices) ? prev : 'random';
+    }
+    const selectedTarget = () => (resultSelect.value === 'random' ? undefined : Number(resultSelect.value));
+
+    function spin() { if (!wheel.spinning) wheel.spin(selectedTarget()); }
     document.getElementById('stage').addEventListener('click', spin);
     document.addEventListener('keydown', (e) => {
       if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); spin(); }
@@ -237,6 +254,7 @@
     });
 
     renderWidthList();
+    renderResultOptions();
     window.__wheel = wheel; // for the console
   </script>
 </body>
