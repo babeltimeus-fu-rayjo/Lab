@@ -85,6 +85,8 @@ export function createDropGame(container, options = {}) {
   let H = 0;
   let dpr = 1;
   let pegs = [];
+  let pegRows = []; // pegs grouped by row, so collisions only check the nearby row(s)
+  let pegRowGap = 1;
   let dividers = []; // x positions of slot walls
   let slots = []; // { x0, x1, value, count, flash }
   let balls = [];
@@ -116,14 +118,18 @@ export function createDropGame(container, options = {}) {
 
     // Quincunx peg field: rows alternate between bin edges and bin centres.
     pegs = [];
-    const rowGap = (pegAreaBottom - pegAreaTop) / rows;
+    pegRows = [];
+    pegRowGap = (pegAreaBottom - pegAreaTop) / rows;
     for (let r = 0; r < rows; r++) {
-      const y = pegAreaTop + (r + 0.5) * rowGap;
+      const y = pegAreaTop + (r + 0.5) * pegRowGap;
+      const row = [];
       if (r % 2 === 0) {
-        for (let c = 1; c < n; c++) pegs.push({ x: c * binW, y }); // edges
+        for (let c = 1; c < n; c++) row.push({ x: c * binW, y }); // edges
       } else {
-        for (let c = 0; c < n; c++) pegs.push({ x: (c + 0.5) * binW, y }); // centres
+        for (let c = 0; c < n; c++) row.push({ x: (c + 0.5) * binW, y }); // centres
       }
+      pegRows.push(row);
+      for (const p of row) pegs.push(p);
     }
 
     dividers = [];
@@ -192,20 +198,26 @@ export function createDropGame(container, options = {}) {
       x += vx * FIXED_DT;
       y += vy * FIXED_DT;
       if (biasC) vx += (targetX - x) * biasC * FIXED_DT;
-      for (const p of pegs) {
-        const dx = x - p.x;
-        const dy = y - p.y;
-        const min = ballR + pegR;
-        if (Math.abs(dx) > min || Math.abs(dy) > min) continue;
-        const dist = Math.hypot(dx, dy) || 0.0001;
-        if (dist < min) {
-          const nx = dx / dist;
-          const ny = dy / dist;
-          x = p.x + nx * min;
-          y = p.y + ny * min;
-          const vn = vx * nx + vy * ny;
-          if (vn < 0) { vx -= (1 + e) * vn * nx; vy -= (1 + e) * vn * ny; }
-          vx += (rng() - 0.5) * 40;
+      const min = ballR + pegR;
+      const r0 = Math.max(0, Math.floor((y - min - pegAreaTop) / pegRowGap - 0.5));
+      const r1 = Math.min(pegRows.length - 1, Math.ceil((y + min - pegAreaTop) / pegRowGap - 0.5));
+      for (let rr = r0; rr <= r1; rr++) {
+        const row = pegRows[rr];
+        for (let pi = 0; pi < row.length; pi++) {
+          const p = row[pi];
+          const dx = x - p.x;
+          const dy = y - p.y;
+          if (Math.abs(dx) > min || Math.abs(dy) > min) continue;
+          const dist = Math.hypot(dx, dy) || 0.0001;
+          if (dist < min) {
+            const nx = dx / dist;
+            const ny = dy / dist;
+            x = p.x + nx * min;
+            y = p.y + ny * min;
+            const vn = vx * nx + vy * ny;
+            if (vn < 0) { vx -= (1 + e) * vn * nx; vy -= (1 + e) * vn * ny; }
+            vx += (rng() - 0.5) * 40;
+          }
         }
       }
       if (x < ballR) { x = ballR; vx = Math.abs(vx) * e; }
@@ -228,8 +240,16 @@ export function createDropGame(container, options = {}) {
    */
   function findNaturalPath(target, dropXf) {
     const baseXf = clamp(dropXf, 0, 1);
+    const dropCol = clamp(Math.floor(baseXf * slots.length), 0, slots.length - 1);
+    const dist = Math.abs(target - dropCol);
+    // Bias scales with the drop→target distance so the target is a COMMON landing
+    // and the seed search stays cheap (a few tries): near targets fall naturally,
+    // far ones lean just enough. This avoids per-spawn FPS hitches on extreme drops.
+    const schedule = dist <= 3
+      ? [[0, 450], [10, 400]]
+      : [[clamp((dist - 2) * 2, 4, 16), 500], [16, 400]];
     let best = null;
-    for (const [biasC, budget] of [[0, 4000], [4, 3000], [10, 4000]]) {
+    for (const [biasC, budget] of schedule) {
       for (let tries = 0; tries < budget; tries++) {
         const r = simulatePath(baseXf, (Math.random() * 4294967296) >>> 0, target, biasC);
         if (r.slot === target) return r.path;
@@ -271,25 +291,31 @@ export function createDropGame(container, options = {}) {
       b.x += b.vx * dt;
       b.y += b.vy * dt;
 
-      // Pegs (only those on nearby rows matter, but the field is small).
-      for (const p of pegs) {
-        const dx = b.x - p.x;
-        const dy = b.y - p.y;
-        const min = ballR + pegR;
-        if (Math.abs(dx) > min || Math.abs(dy) > min) continue;
-        const dist = Math.hypot(dx, dy) || 0.0001;
-        if (dist < min) {
-          const nx = dx / dist;
-          const ny = dy / dist;
-          b.x = p.x + nx * min;
-          b.y = p.y + ny * min;
-          const vn = b.vx * nx + b.vy * ny;
-          if (vn < 0) {
-            b.vx -= (1 + e) * vn * nx;
-            b.vy -= (1 + e) * vn * ny;
+      // Pegs — only the row(s) the ball is passing can collide.
+      const min = ballR + pegR;
+      const r0 = Math.max(0, Math.floor((b.y - min - pegAreaTop) / pegRowGap - 0.5));
+      const r1 = Math.min(pegRows.length - 1, Math.ceil((b.y + min - pegAreaTop) / pegRowGap - 0.5));
+      for (let rr = r0; rr <= r1; rr++) {
+        const row = pegRows[rr];
+        for (let pi = 0; pi < row.length; pi++) {
+          const p = row[pi];
+          const dx = b.x - p.x;
+          const dy = b.y - p.y;
+          if (Math.abs(dx) > min || Math.abs(dy) > min) continue;
+          const dist = Math.hypot(dx, dy) || 0.0001;
+          if (dist < min) {
+            const nx = dx / dist;
+            const ny = dy / dist;
+            b.x = p.x + nx * min;
+            b.y = p.y + ny * min;
+            const vn = b.vx * nx + b.vy * ny;
+            if (vn < 0) {
+              b.vx -= (1 + e) * vn * nx;
+              b.vy -= (1 + e) * vn * ny;
+            }
+            // Tangential jitter so paths diverge.
+            b.vx += (Math.random() - 0.5) * 40;
           }
-          // Tangential jitter so paths diverge.
-          b.vx += (Math.random() - 0.5) * 40;
         }
       }
 
