@@ -15,6 +15,7 @@
 
 const TAU = Math.PI * 2;
 const mod = (a, m) => ((a % m) + m) % m;
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 const PALETTE = [
   '#ef4444', '#f97316', '#f59e0b', '#facc15', '#84cc16', '#22c55e',
@@ -34,6 +35,7 @@ export function createWheel(container, options = {}) {
     slices: 6,
     weights: null, // array of positive numbers; defaults to all-equal
     spinSpeed: 5, // 1..10
+    landPos: 0.5, // 0..1 within a predetermined slice: 0 = left edge, 1 = right edge
     labels: null, // array; defaults to "1".."N"
     palette: PALETTE,
     ...options,
@@ -197,7 +199,14 @@ export function createWheel(container, options = {}) {
     let finalRot;
     if (Number.isInteger(targetSlice) && targetSlice >= 0 && targetSlice < weights.length) {
       const seg = bounds()[targetSlice];
-      const desired = mod(-(seg[0] + seg[1]) / 2, 360); // pointer angle == slice centre
+      const span = seg[1] - seg[0];
+      // Where inside the slice the pointer comes to rest: 0 = leading (left)
+      // edge, 0.5 = centre, 1 = trailing (right) edge. A small guard keeps the
+      // rest clear of the dividers so the landed slice is never ambiguous.
+      const guard = Math.min(span * 0.15, 1.5);
+      const p = clamp(cfg.landPos ?? 0.5, 0, 1);
+      const angle = seg[0] + guard + p * (span - 2 * guard);
+      const desired = mod(-angle, 360); // pointer angle == chosen spot in slice
       finalRot = base + mod(desired - base, 360);
     } else {
       finalRot = base + Math.random() * 360;

@@ -121,6 +121,11 @@
           <select id="force-result"></select>
         </div>
 
+        <div class="setting" id="landpos-setting">
+          <label for="landpos">Land position <output id="landpos-out">Center</output></label>
+          <input type="range" id="landpos" min="0" max="100" step="1" value="50">
+        </div>
+
         <div class="setting">
           <div class="widths-head">
             <label style="margin:0; display:block">Slice widths</label>
@@ -205,6 +210,7 @@
       weights = next;
       renderWidthList();
       renderResultOptions();
+      updateLandState();
       wheel.setConfig({ slices, weights });
     });
 
@@ -227,6 +233,22 @@
       resultSelect.value = prev === 'random' || (prev !== '' && Number(prev) >= 0 && Number(prev) < slices) ? prev : 'random';
     }
     const selectedTarget = () => (resultSelect.value === 'random' ? undefined : Number(resultSelect.value));
+
+    // Land position: where inside a predetermined slice the pointer stops.
+    const landRange = document.getElementById('landpos');
+    const landOut = document.getElementById('landpos-out');
+    const landSetting = document.getElementById('landpos-setting');
+    const landLabel = (v) => (v === 50 ? 'Center' : v === 0 ? 'Left edge' : v === 100 ? 'Right edge' : `${v}%`);
+    function updateLandState() {
+      const on = resultSelect.value !== 'random'; // only meaningful with a fixed slice
+      landRange.disabled = !on;
+      landSetting.style.opacity = on ? '' : '0.5';
+    }
+    landRange.addEventListener('input', () => {
+      landOut.textContent = landLabel(Number(landRange.value));
+      wheel.setConfig({ landPos: Number(landRange.value) / 100 });
+    });
+    resultSelect.addEventListener('change', updateLandState);
 
     function spin() { if (!wheel.spinning) wheel.spin(selectedTarget()); }
     document.getElementById('stage').addEventListener('click', spin);
@@ -255,6 +277,7 @@
 
     renderWidthList();
     renderResultOptions();
+    updateLandState();
     window.__wheel = wheel; // for the console
   </script>
 </body>
