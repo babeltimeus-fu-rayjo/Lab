@@ -242,12 +242,12 @@ export function createDropGame(container, options = {}) {
     const baseXf = clamp(dropXf, 0, 1);
     const dropCol = clamp(Math.floor(baseXf * slots.length), 0, slots.length - 1);
     const dist = Math.abs(target - dropCol);
-    // Bias scales with the drop→target distance so the target is a COMMON landing
-    // and the seed search stays cheap (a few tries): near targets fall naturally,
-    // far ones lean just enough. This avoids per-spawn FPS hitches on extreme drops.
-    const schedule = dist <= 3
-      ? [[0, 450], [10, 400]]
-      : [[clamp((dist - 2) * 2, 4, 16), 500], [16, 400]];
+    // Use the GENTLEST lean that still finds a path cheaply. The minimal bias
+    // needed is small even for the far corner (measured ≤ ~5), so near targets fall
+    // pure-natural and far ones lean only slightly — believable, not homing — while
+    // the seed search stays a few tries (no per-spawn FPS hitch).
+    const baseBias = dist <= 5 ? 0 : clamp((dist - 5) * 0.6, 0, 5);
+    const schedule = [[baseBias, 80], [baseBias + 2, 100], [baseBias + 6, 250]];
     let best = null;
     for (const [biasC, budget] of schedule) {
       for (let tries = 0; tries < budget; tries++) {
