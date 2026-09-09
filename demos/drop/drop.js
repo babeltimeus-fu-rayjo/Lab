@@ -197,7 +197,6 @@ export function createDropGame(container, options = {}) {
       vy += g * FIXED_DT;
       x += vx * FIXED_DT;
       y += vy * FIXED_DT;
-      if (biasC) vx += (targetX - x) * biasC * FIXED_DT;
       const min = ballR + pegR;
       const r0 = Math.max(0, Math.floor((y - min - pegAreaTop) / pegRowGap - 0.5));
       const r1 = Math.min(pegRows.length - 1, Math.ceil((y + min - pegAreaTop) / pegRowGap - 0.5));
@@ -217,6 +216,9 @@ export function createDropGame(container, options = {}) {
             const vn = vx * nx + vy * ny;
             if (vn < 0) { vx -= (1 + e) * vn * nx; vy -= (1 + e) * vn * ny; }
             vx += (rng() - 0.5) * 40;
+            // Nudge the bounce toward the target. Only applied at pegs, so free-fall
+            // stays perfectly straight — the ball just favours target-ward bounces.
+            if (biasC) vx += (targetX < x ? -biasC : biasC);
           }
         }
       }
@@ -246,8 +248,10 @@ export function createDropGame(container, options = {}) {
     // needed is small even for the far corner (measured ≤ ~5), so near targets fall
     // pure-natural and far ones lean only slightly — believable, not homing — while
     // the seed search stays a few tries (no per-spawn FPS hitch).
-    const baseBias = dist <= 5 ? 0 : clamp((dist - 5) * 0.6, 0, 5);
-    const schedule = [[baseBias, 80], [baseBias + 2, 100], [baseBias + 6, 250]];
+    // The per-bounce kick needed scales with bin width (px to cross per column),
+    // so base it on binW; the search still escalates if a board needs a touch more.
+    const baseBias = dist <= 5 ? 0 : clamp((dist - 5) * binW * 0.3, 8, 65);
+    const schedule = [[baseBias, 90], [baseBias + 25, 110], [baseBias + 55, 250]];
     let best = null;
     for (const [biasC, budget] of schedule) {
       for (let tries = 0; tries < budget; tries++) {
