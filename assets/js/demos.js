@@ -50,7 +50,7 @@ export const demos = [
     icon: '🍒',
     tagline: 'Scratch a card cell by cell and match X of the same symbol before your scratches run out.',
     description:
-      'A “match X to win” scratch ticket where every cell is its own mini scratch card (it reuses the Scratch Card mechanic). Reveal X of the same symbol anywhere to win. Set the grid size, your scratch budget, the per-cell reveal threshold and the match target, and force a winning card (a match is always hidden, but finding it in your budget takes luck) or a losing one.',
+      'A “match X to win” scratch ticket where every cell is its own mini scratch card (it reuses the Scratch Card mechanic). Reveal X of the same symbol anywhere to win. Set the grid size, your scratch budget, the per-cell reveal threshold and the match target, and force a winning card (always winnable within your scratch budget, but the match lands at a different point each time) or a losing one.',
     path: 'demos/match/',
     tags: ['canvas', 'pointer events', 'configurable'],
   },

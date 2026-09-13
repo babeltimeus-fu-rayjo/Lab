@@ -82,24 +82,19 @@ export function createMatch(container, options = {}) {
     const out = new Array(total);
 
     if (cfg.result === 'win') {
-      // Plant ONE winning symbol W times among otherwise-capped filler. The card
-      // is always a winner (Reveal all matches), but uncovering it in play is a
-      // hypergeometric hunt — so the win lands at a different point each time,
-      // rarely right away, and now and then not before the budget runs out.
-      // Aim for ~X+1 winning cells within a full budget's worth of reveals, and
-      // cap the density so an immediate match stays unlikely (~≤12%).
-      const winSym = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
-      const cap = Math.max(X, Math.round(total * Math.pow(0.12, 1 / X)));
-      let W = Math.round(((X + 1) * total) / limit) + (Math.floor(Math.random() * 3) - 1);
-      W = clamp(W, X, Math.min(total, cap));
-      const positions = shuffle([...Array(total).keys()]).slice(0, W);
-      const winSet = new Set(positions);
-      const rest = [];
-      for (let i = 0; i < total; i++) {
-        if (winSet.has(i)) out[i] = winSym;
-        else rest.push(i);
-      }
-      fillCapped(out, rest, X, winSym); // only winSym can complete a match
+      // Guarantee a win by the time the whole budget is spent: draw the card from
+      // at most D distinct symbols where (X-1)·D < limit, so ANY `limit` reveals
+      // must contain X of a kind (pigeonhole). Spread those symbols as evenly as
+      // possible (round-robin, then shuffle positions) so the winning scratch
+      // lands at a varied, usually-late point — the latest it can hide is
+      // (X-1)·D + 1 ≤ limit — rather than snapping shut on the first few cells.
+      const dMax = Math.max(1, Math.floor((limit - 1) / (X - 1)));
+      const D = clamp(dMax, 1, Math.min(SYMBOLS.length, total));
+      const pool = shuffle(SYMBOLS.slice()).slice(0, D);
+      const bag = [];
+      for (let i = 0; bag.length < total; i++) bag.push(pool[i % D]);
+      shuffle(bag);
+      for (let i = 0; i < total; i++) out[i] = bag[i];
     } else if (cfg.result === 'lose') {
       // Every symbol used at most X-1 times → no match can ever complete.
       fillCapped(out, [...Array(total).keys()], X, null);
