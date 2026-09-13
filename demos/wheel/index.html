@@ -146,7 +146,7 @@
   </main>
 
   <script type="module">
-    const { createWheel } = await import(`./wheel.js?v=${encodeURIComponent(document.lastModified)}`);
+    const { createWheel } = await import(`./wheel.js?v=${Date.now()}`);
 
     const mount = document.getElementById('wheel');
     const wheel = createWheel(mount, { slices: 6, spinSpeed: 5 });

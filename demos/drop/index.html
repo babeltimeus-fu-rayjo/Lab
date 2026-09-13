@@ -115,9 +115,10 @@
   </main>
 
   <script type="module">
-    // Cache-bust the module against GitHub Pages' 10-min asset cache so a new
-    // deploy loads immediately (document.lastModified changes each deploy).
-    const { createDropGame } = await import(`./drop.js?v=${encodeURIComponent(document.lastModified)}`);
+    // Cache-bust the module against GitHub Pages' 10-min asset cache. The query
+    // is unique per load: keying it off document.lastModified was no good,
+    // because a cached page reports a stale value and keeps pulling stale JS.
+    const { createDropGame } = await import(`./drop.js?v=${Date.now()}`);
 
     const mount = document.getElementById('board');
     const game = createDropGame(mount, { width: 9, height: 12, ballCount: 25 });

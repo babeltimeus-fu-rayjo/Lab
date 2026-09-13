@@ -164,7 +164,7 @@
   </main>
 
   <script type="module">
-    const v = `?v=${encodeURIComponent(document.lastModified)}`;
+    const v = `?v=${Date.now()}`;
     const [{ createScratcher }, { createMatch }] = await Promise.all([
       import(`../scratcher/scratcher.js${v}`),
       import(`./match.js${v}`),

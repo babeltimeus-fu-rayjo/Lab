@@ -188,7 +188,7 @@
   </main>
 
   <script type="module">
-    const { createSlotMachine } = await import(`./slots.js?v=${encodeURIComponent(document.lastModified)}`);
+    const { createSlotMachine } = await import(`./slots.js?v=${Date.now()}`);
 
     const DEFAULT_SYMBOLS = ['🍒', '🍋', '🍊', '🍇', '🔔', '⭐', '💎', '7️⃣'];
     const MAX_SYMBOLS = 14;

@@ -72,7 +72,7 @@
   </main>
 
   <script type="module">
-    const { createScratcher } = await import(`./scratcher.js?v=${encodeURIComponent(document.lastModified)}`);
+    const { createScratcher } = await import(`./scratcher.js?v=${Date.now()}`);
 
     // A cheerful picture to hide, as an inline SVG so the page needs no image files.
     const picture = `
