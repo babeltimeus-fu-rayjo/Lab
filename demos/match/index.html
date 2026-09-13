@@ -46,6 +46,9 @@
       from { box-shadow: 0 0 0 0 rgba(255, 204, 77, 0.45); }
       to { box-shadow: 0 0 18px 5px rgba(255, 204, 77, 0.8); }
     }
+    /* The set that was on the card but out of reach of your scratches. */
+    .match-cell.is-missed { z-index: 1; outline: 3px dashed var(--bad); outline-offset: -3px; }
+    .match-cell.is-missed .match-face { background: radial-gradient(circle at 50% 38%, #4a1d24, #2a1014 70%); }
 
     .readout { margin: 1rem auto 0; text-align: center; min-height: 2.6rem; }
     .status { margin: 0; font-weight: 700; min-height: 1.4em; }
@@ -148,8 +151,10 @@
       <em>Winning card</em> always pays out: the match is scheduled to complete on a particular scratch,
       drawn anywhere between your X-th and your last, so it lands whichever cells you pick — but with
       scratches to spare it rarely lands on the first X, and falls somewhere different every game. A
-      <em>Losing card</em> can never complete a match. <strong>Reveal at</strong> sets how far you must
-      scratch an individual cell before it pops fully open.
+      <em>Losing card</em> still holds a real match — it's just dealt into cells your budget can never
+      reach, so <strong>Reveal all</strong> shows you exactly what you missed. That's why you can never
+      scratch the whole card: the limit stops <em>X</em> cells short.
+      <strong>Reveal at</strong> sets how far you must scratch an individual cell before it pops fully open.
     </div>
   </main>
 
@@ -194,18 +199,22 @@
     // count, and the match target can't exceed what you're able to reveal.
     function syncBounds() {
       const total = rows * cols;
-      limitRange.max = String(total);
-      limit = Math.min(Math.max(2, limit), total);
-      limitRange.value = String(limit);
-      limitOut.textContent = limit;
-      limitNote.textContent = `Scratch up to ${limit} of ${total} cells.`;
-
-      const maxTarget = Math.min(5, limit, total);
+      // A losing card has to keep X cells out of reach, so the budget stops at
+      // total - X, and X itself can never exceed half the grid.
+      const maxTarget = Math.min(5, Math.floor(total / 2));
       target = Math.min(Math.max(2, target), maxTarget);
       matchRange.max = String(maxTarget);
       matchRange.value = String(target);
       matchOut.textContent = target;
       matchNote.textContent = `Reveal ${target} of the same symbol to win.`;
+
+      const maxLimit = total - target;
+      limitRange.min = String(target);
+      limitRange.max = String(maxLimit);
+      limit = Math.min(Math.max(target, limit), maxLimit);
+      limitRange.value = String(limit);
+      limitOut.textContent = limit;
+      limitNote.textContent = `Scratch up to ${limit} of ${total} cells — the rest stay out of reach.`;
     }
 
     function deal() {
@@ -221,6 +230,10 @@
     game.addEventListener('commit', (e) => setLeft(e.detail.limit - e.detail.used));
     game.addEventListener('match', (e) => {
       setStatus(`MATCH! 🎉 ${e.detail.count} × ${e.detail.symbol}`, 'win');
+    });
+    game.addEventListener('missed', (e) => {
+      const n = e.detail.cells.length;
+      setStatus(`So close — ${n} × ${e.detail.symbol} was sitting in cells you never got to.`, 'over');
     });
     game.addEventListener('exhausted', () => {
       if (!game.won) setStatus('Out of scratches — hit <strong>Reveal all</strong> to see the card.', 'over');
@@ -240,7 +253,7 @@
 
     document.getElementById('reveal').addEventListener('click', () => {
       game.revealAll();
-      if (!game.won) setStatus('No match on this card.', 'over');
+      if (!game.won && !game.missed) setStatus('No match on this card.', 'over');
     });
     document.getElementById('new').addEventListener('click', deal);
 
