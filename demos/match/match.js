@@ -59,6 +59,13 @@ export function createMatch(container, options = {}) {
   let revealedCount = 0;
   let won = false;
   let revealingAll = false;
+  // Scheduled-win state (cfg.result === 'win'): which scratch numbers show the
+  // winning symbol, the symbol itself, the capped filler pool, and how many
+  // cells have been handed a symbol so far.
+  let plan = [];
+  let winSym = null;
+  let fillerBag = [];
+  let assigned = 0;
 
   Object.assign(container.style, { display: 'grid', gap: 'clamp(4px, 1.4vw, 10px)' });
 
@@ -74,40 +81,59 @@ export function createMatch(container, options = {}) {
     indices.forEach((idx, k) => { out[idx] = bag[k]; });
   }
 
-  // Decide the hidden symbol for every cell, honouring the predetermined result.
+  // Hidden symbols for the cases that need no scheduling — fixed up front.
   function generateSymbols() {
     const total = cfg.rows * cfg.cols;
-    const X = cfg.matchTarget;
-    const limit = cfg.scratchLimit;
     const out = new Array(total);
-
-    if (cfg.result === 'win') {
-      // Guarantee a win by the time the whole budget is spent: draw the card from
-      // at most D distinct symbols where (X-1)·D < limit, so ANY `limit` reveals
-      // must contain X of a kind (pigeonhole). Spread those symbols as evenly as
-      // possible (round-robin, then shuffle positions) so the winning scratch
-      // lands at a varied, usually-late point — the latest it can hide is
-      // (X-1)·D + 1 ≤ limit — rather than snapping shut on the first few cells.
-      const dMax = Math.max(1, Math.floor((limit - 1) / (X - 1)));
-      const D = clamp(dMax, 1, Math.min(SYMBOLS.length, total));
-      const pool = shuffle(SYMBOLS.slice()).slice(0, D);
-      const bag = [];
-      for (let i = 0; bag.length < total; i++) bag.push(pool[i % D]);
-      shuffle(bag);
-      for (let i = 0; i < total; i++) out[i] = bag[i];
-    } else if (cfg.result === 'lose') {
+    if (cfg.result === 'lose') {
       // Every symbol used at most X-1 times → no match can ever complete.
-      fillCapped(out, [...Array(total).keys()], X, null);
+      fillCapped(out, [...Array(total).keys()], cfg.matchTarget, null);
     } else {
       for (let i = 0; i < total; i++) out[i] = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
     }
     return out;
   }
 
+  // Schedule a predetermined win. The match completes on scratch T, drawn from
+  // anywhere in [X, limit] — so with scratches to spare the win rarely lands on
+  // the first X, and lands somewhere different every game. It always lands,
+  // though: T never exceeds the budget, whichever cells the player picks.
+  function planWin() {
+    const total = cfg.rows * cfg.cols;
+    const X = cfg.matchTarget;
+    const limit = cfg.scratchLimit;
+
+    winSym = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+    const T = X + Math.floor(Math.random() * (limit - X + 1)); // X..limit inclusive
+    plan = new Array(limit).fill(false);
+    plan[T - 1] = true; // the scratch that completes the match
+    for (const i of shuffle([...Array(T - 1).keys()]).slice(0, X - 1)) plan[i] = true;
+
+    // Filler symbols, each capped at X-1 copies, so only winSym can ever match.
+    fillerBag = [];
+    for (const f of shuffle(SYMBOLS.filter((s) => s !== winSym))) {
+      for (let j = 0; j < X - 1 && fillerBag.length < total - X; j++) fillerBag.push(f);
+      if (fillerBag.length >= total - X) break;
+    }
+    shuffle(fillerBag);
+    assigned = 0;
+  }
+
+  // On a scheduled win the symbols are handed out as cells are opened, so the
+  // match falls on the planned scratch no matter which cells get picked.
+  function assignCell(cell) {
+    if (cell.sym != null) return;
+    const k = ++assigned;
+    const sym = plan[k - 1] ? winSym : (fillerBag.pop() ?? winSym);
+    cell.sym = sym;
+    cell.face.textContent = sym;
+  }
+
   function onProgress(cell, fraction) {
     if (revealingAll || won || cell.started || fraction <= 0) return;
     if (used >= cfg.scratchLimit) return; // untouched cells are already locked
     cell.started = true; // touching a cell commits it — no free peeking
+    assignCell(cell); // scheduled wins decide the symbol as the cell is opened
     used++;
     emit('commit', { used, limit: cfg.scratchLimit });
     if (used >= cfg.scratchLimit) lockUntouched();
@@ -115,6 +141,7 @@ export function createMatch(container, options = {}) {
 
   function onComplete(cell) {
     if (cell.revealed) return;
+    assignCell(cell); // safety: a cell can pop open the moment the threshold drops
     cell.revealed = true;
     revealedCount++;
     emit('reveal', { revealed: revealedCount, total: cells.length });
@@ -159,7 +186,10 @@ export function createMatch(container, options = {}) {
     won = false;
 
     container.style.gridTemplateColumns = `repeat(${cfg.cols}, 1fr)`;
-    const syms = generateSymbols();
+    // A predetermined win schedules its symbols instead of fixing them up front.
+    const scheduled = cfg.result === 'win';
+    if (scheduled) planWin();
+    const syms = scheduled ? null : generateSymbols();
     const n = cfg.rows * cfg.cols;
 
     for (let i = 0; i < n; i++) {
@@ -167,7 +197,7 @@ export function createMatch(container, options = {}) {
       el.className = 'match-cell';
       const face = document.createElement('div');
       face.className = 'match-face';
-      face.textContent = syms[i];
+      face.textContent = scheduled ? '' : syms[i];
       el.appendChild(face);
       container.appendChild(el);
 
@@ -177,7 +207,7 @@ export function createMatch(container, options = {}) {
         label: '',
         speckles: 120,
       });
-      const cell = { el, face, scratcher, sym: syms[i], started: false, revealed: false, i };
+      const cell = { el, face, scratcher, sym: scheduled ? null : syms[i], started: false, revealed: false, i };
       scratcher.addEventListener('progress', (e) => onProgress(cell, e.detail.fraction));
       scratcher.addEventListener('complete', () => onComplete(cell));
       cells.push(cell);
@@ -192,6 +222,7 @@ export function createMatch(container, options = {}) {
     revealingAll = true;
     for (const cell of cells) {
       cell.el.classList.remove('is-locked');
+      assignCell(cell); // keep filling the schedule, so the win still shows
       cell.scratcher.reveal(); // fires 'complete' → onComplete → checkMatch
     }
     revealingAll = false;
