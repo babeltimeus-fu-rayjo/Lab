@@ -46,9 +46,12 @@
       from { box-shadow: 0 0 0 0 rgba(255, 204, 77, 0.45); }
       to { box-shadow: 0 0 18px 5px rgba(255, 204, 77, 0.8); }
     }
-    /* The set that was on the card but out of reach of your scratches. */
+    /* The set you didn't complete: dashed = ones you turned up, solid = the ones
+       that were sitting outside your scratch budget. */
     .match-cell.is-missed { z-index: 1; outline: 3px dashed var(--bad); outline-offset: -3px; }
-    .match-cell.is-missed .match-face { background: radial-gradient(circle at 50% 38%, #4a1d24, #2a1014 70%); }
+    .match-cell.is-outofreach { z-index: 1; outline: 3px solid var(--bad); outline-offset: -3px; }
+    .match-cell.is-missed .match-face,
+    .match-cell.is-outofreach .match-face { background: radial-gradient(circle at 50% 38%, #4a1d24, #2a1014 70%); }
 
     .readout { margin: 1rem auto 0; text-align: center; min-height: 2.6rem; }
     .status { margin: 0; font-weight: 700; min-height: 1.4em; }
@@ -151,9 +154,11 @@
       <em>Winning card</em> always pays out: the match is scheduled to complete on a particular scratch,
       drawn anywhere between your X-th and your last, so it lands whichever cells you pick — but with
       scratches to spare it rarely lands on the first X, and falls somewhere different every game. A
-      <em>Losing card</em> still holds a real match — it's just dealt into cells your budget can never
-      reach, so <strong>Reveal all</strong> shows you exactly what you missed. That's why you can never
-      scratch the whole card: the limit stops <em>X</em> cells short.
+      <em>Losing card</em> still holds a real match, scattered the way a fair card would scatter it —
+      so you'll usually turn up one or two of the winning symbol and just miss the last, and only
+      occasionally find none of it. <strong>Reveal all</strong> shows what you missed: dashed for the
+      ones you turned up, solid for the ones that sat outside your budget. That's why you can never
+      scratch the whole card — the limit stops <em>X</em> cells short.
       <strong>Reveal at</strong> sets how far you must scratch an individual cell before it pops fully open.
     </div>
   </main>
@@ -232,8 +237,11 @@
       setStatus(`MATCH! 🎉 ${e.detail.count} × ${e.detail.symbol}`, 'win');
     });
     game.addEventListener('missed', (e) => {
+      const { symbol, reached } = e.detail;
       const n = e.detail.cells.length;
-      setStatus(`So close — ${n} × ${e.detail.symbol} was sitting in cells you never got to.`, 'over');
+      setStatus(reached > 0
+        ? `So close — you turned up ${reached} of ${n} ${symbol}. The rest were out of reach.`
+        : `No luck — all ${n} ${symbol} were sitting in cells you never opened.`, 'over');
     });
     game.addEventListener('exhausted', () => {
       if (!game.won) setStatus('Out of scratches — hit <strong>Reveal all</strong> to see the card.', 'over');

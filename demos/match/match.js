@@ -8,9 +8,10 @@
  *   - 'win'    the match is scheduled to complete on scratch T, drawn from
  *              [X, limit], so it always lands — but with scratches to spare it
  *              rarely lands on the first X, and falls somewhere different each game.
- *   - 'lose'   the set is dealt into the last X cells to be opened, which the
- *              budget can never reach, so the card was winnable — you just
- *              couldn't get there. Reveal all shows what you missed.
+ *   - 'lose'   the set is scattered as a fair card would scatter it, rejecting
+ *              only the draws where every copy lands in reach — so you usually
+ *              turn up one or two and just miss the last, and sometimes none of
+ *              your scratches were in it. Reveal all shows what you missed.
  *   - 'random' a fixed card that always holds a set; finding it is luck.
  *
  * Because a losing card must keep X cells out of reach, the scratch limit is
@@ -76,6 +77,7 @@ export function createMatch(container, options = {}) {
   let keySym = null;
   let fillerBag = [];
   let assigned = 0;
+  let missSlots = new Set(); // lose: deals past the budget that carry the set
 
   Object.assign(container.style, { display: 'grid', gap: 'clamp(4px, 1.4vw, 10px)' });
 
@@ -105,14 +107,29 @@ export function createMatch(container, options = {}) {
     assigned = 0;
   }
 
-  // A predetermined loss: the winnable set is dealt into the LAST X cells to be
-  // opened. The budget tops out at total - X, so those cells are always ones the
-  // player could not have reached — the card was winnable, just not by them.
+  // A predetermined loss. How many of the set fall within reach is drawn the way
+  // a fair card would fall — scatter X symbols over the grid and count how many
+  // land in the first `limit` deals — rejecting only the case where all X land in
+  // reach, since that one is a win. So a loss is statistically indistinguishable
+  // from an unlucky honest card: usually you turn up one or two of the symbol and
+  // just miss the last, sometimes none of your scratches were in it at all.
   function planLose() {
     const total = cfg.rows * cfg.cols;
     const X = cfg.matchTarget;
+    const limit = cfg.scratchLimit;
     keySym = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
-    plan = []; // unused; position in the deal decides it
+
+    let spots;
+    do {
+      spots = shuffle([...Array(total).keys()]).slice(0, X);
+    } while (spots.every((p) => p < limit)); // all in reach would complete the match
+
+    plan = new Array(limit).fill(false);
+    missSlots = new Set();
+    for (const p of spots) {
+      if (p < limit) plan[p] = true; // turns up among the scratches you can make
+      else missSlots.add(p + 1); // dealt past the budget — the one you can't get
+    }
     buildFillerBag(total - X, X, keySym);
     assigned = 0;
   }
@@ -122,10 +139,10 @@ export function createMatch(container, options = {}) {
   function assignCell(cell) {
     if (cell.sym != null) return;
     const k = ++assigned;
-    const X = cfg.matchTarget;
-    const sym = cfg.result === 'win'
-      ? (plan[k - 1] ? keySym : (fillerBag.pop() ?? keySym))
-      : (k > cells.length - X ? keySym : (fillerBag.pop() ?? keySym));
+    const isKey = cfg.result === 'win'
+      ? !!plan[k - 1]
+      : (k <= cfg.scratchLimit ? !!plan[k - 1] : missSlots.has(k));
+    const sym = isKey ? keySym : (fillerBag.pop() ?? keySym);
     cell.sym = sym;
     cell.face.textContent = sym;
   }
@@ -198,8 +215,12 @@ export function createMatch(container, options = {}) {
       // predetermined winner is the exception: that card really is a winner.)
       if (revealingAll && cfg.result !== 'win') {
         missed = true;
-        for (const idx of idxs) cells[idx].el.classList.add('is-missed');
-        emit('missed', { symbol: sym, cells: idxs });
+        // Separate the ones you actually turned up from the ones you never got to.
+        const reached = idxs.filter((i) => cells[i].started).length;
+        for (const idx of idxs) {
+          cells[idx].el.classList.add(cells[idx].started ? 'is-missed' : 'is-outofreach');
+        }
+        emit('missed', { symbol: sym, cells: idxs, reached });
         return;
       }
       won = true;
