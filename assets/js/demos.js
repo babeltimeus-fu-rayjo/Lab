@@ -44,4 +44,14 @@ export const demos = [
     path: 'demos/drop/',
     tags: ['canvas', 'physics', 'configurable'],
   },
+  {
+    id: 'bingo',
+    title: 'Scratch Bingo',
+    icon: '🎟️',
+    tagline: 'Scratch a bingo card cell by cell and complete a line of stars before your scratches run out.',
+    description:
+      'A bingo card where every cell is its own mini scratch card (it reuses the Scratch Card mechanic). Reveal a full line — row, column or diagonal — of stars to win. Set the grid size and how many scratches you get, and force a guaranteed winning or losing card.',
+    path: 'demos/bingo/',
+    tags: ['canvas', 'pointer events', 'configurable'],
+  },
 ];
