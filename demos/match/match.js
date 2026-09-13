@@ -62,61 +62,51 @@ export function createMatch(container, options = {}) {
 
   Object.assign(container.style, { display: 'grid', gap: 'clamp(4px, 1.4vw, 10px)' });
 
+  // Fill the given cell indices with symbols (never `exclude`), each used at most
+  // X-1 times, so none of them can form a match on its own.
+  function fillCapped(out, indices, X, exclude) {
+    const pool = shuffle(SYMBOLS.filter((s) => s !== exclude));
+    const need = Math.max(1, Math.ceil(indices.length / (X - 1)));
+    const chosen = pool.slice(0, Math.min(need, pool.length));
+    const bag = [];
+    for (let i = 0; bag.length < indices.length; i++) bag.push(chosen[i % chosen.length]);
+    shuffle(bag);
+    indices.forEach((idx, k) => { out[idx] = bag[k]; });
+  }
+
   // Decide the hidden symbol for every cell, honouring the predetermined result.
   function generateSymbols() {
     const total = cfg.rows * cfg.cols;
     const X = cfg.matchTarget;
+    const limit = cfg.scratchLimit;
     const out = new Array(total);
 
     if (cfg.result === 'win') {
-      // Restrict the whole card to D distinct symbols so ANY `limit` reveals must
-      // contain X of a kind: (X-1)·D < limit ⇒ by pigeonhole some symbol hits X.
-      const dMax = Math.max(1, Math.floor((cfg.scratchLimit - 1) / Math.max(1, X - 1)));
-      const D = clamp(dMax, 1, Math.min(SYMBOLS.length, total));
-      const pool = shuffle(SYMBOLS.slice()).slice(0, D);
-      for (let i = 0; i < total; i++) out[i] = pool[Math.floor(Math.random() * D)];
-      // Pigeonhole across the full card already forces some symbol to X; this is
-      // a belt-and-braces nudge in case a future edit weakens that.
-      ensureMatch(out, X);
+      // Plant ONE winning symbol W times among otherwise-capped filler. The card
+      // is always a winner (Reveal all matches), but uncovering it in play is a
+      // hypergeometric hunt — so the win lands at a different point each time,
+      // rarely right away, and now and then not before the budget runs out.
+      // Aim for ~X+1 winning cells within a full budget's worth of reveals, and
+      // cap the density so an immediate match stays unlikely (~≤12%).
+      const winSym = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+      const cap = Math.max(X, Math.round(total * Math.pow(0.12, 1 / X)));
+      let W = Math.round(((X + 1) * total) / limit) + (Math.floor(Math.random() * 3) - 1);
+      W = clamp(W, X, Math.min(total, cap));
+      const positions = shuffle([...Array(total).keys()]).slice(0, W);
+      const winSet = new Set(positions);
+      const rest = [];
+      for (let i = 0; i < total; i++) {
+        if (winSet.has(i)) out[i] = winSym;
+        else rest.push(i);
+      }
+      fillCapped(out, rest, X, winSym); // only winSym can complete a match
     } else if (cfg.result === 'lose') {
-      // Use each symbol at most X-1 times so no match can ever complete.
-      const need = Math.ceil(total / (X - 1));
-      const pool = shuffle(SYMBOLS.slice()).slice(0, Math.min(need, SYMBOLS.length));
-      const bag = [];
-      for (let i = 0; bag.length < total; i++) bag.push(pool[i % pool.length]);
-      shuffle(bag);
-      for (let i = 0; i < total; i++) out[i] = bag[i];
-      breakMatches(out, X); // safety: cap any symbol at X-1
+      // Every symbol used at most X-1 times → no match can ever complete.
+      fillCapped(out, [...Array(total).keys()], X, null);
     } else {
       for (let i = 0; i < total; i++) out[i] = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
     }
     return out;
-  }
-
-  // Guarantee some symbol reaches X by overwriting spare cells if needed.
-  function ensureMatch(arr, X) {
-    const count = new Map();
-    for (const s of arr) count.set(s, (count.get(s) || 0) + 1);
-    if ([...count.values()].some((c) => c >= X)) return;
-    const sym = arr[0];
-    let have = count.get(sym) || 0;
-    for (let i = 0; i < arr.length && have < X; i++) if (arr[i] !== sym) { arr[i] = sym; have++; }
-  }
-
-  // Cap every symbol at X-1 occurrences by swapping extras for unused symbols.
-  function breakMatches(arr, X) {
-    const count = new Map();
-    const spare = SYMBOLS.filter((s) => !arr.includes(s));
-    for (let i = 0; i < arr.length; i++) {
-      const c = (count.get(arr[i]) || 0) + 1;
-      if (c >= X && spare.length) {
-        const r = spare.pop();
-        arr[i] = r;
-        count.set(r, 1);
-      } else {
-        count.set(arr[i], c);
-      }
-    }
   }
 
   function onProgress(cell, fraction) {
