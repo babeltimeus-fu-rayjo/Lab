@@ -45,13 +45,13 @@ export const demos = [
     tags: ['canvas', 'physics', 'configurable'],
   },
   {
-    id: 'bingo',
-    title: 'Scratch Bingo',
-    icon: '🎟️',
-    tagline: 'Scratch a bingo card cell by cell and complete a line of stars before your scratches run out.',
+    id: 'match',
+    title: 'Scratch Match',
+    icon: '🍒',
+    tagline: 'Scratch a card cell by cell and match X of the same symbol before your scratches run out.',
     description:
-      'A bingo card where every cell is its own mini scratch card (it reuses the Scratch Card mechanic). Reveal a full line — row, column or diagonal — of stars to win. Set the grid size and how many scratches you get, and force a guaranteed winning or losing card.',
-    path: 'demos/bingo/',
+      'A “match X to win” scratch ticket where every cell is its own mini scratch card (it reuses the Scratch Card mechanic). Reveal X of the same symbol anywhere to win. Set the grid size, your scratch budget, the per-cell reveal threshold and the match target, and force a guaranteed winning or losing card.',
+    path: 'demos/match/',
     tags: ['canvas', 'pointer events', 'configurable'],
   },
 ];

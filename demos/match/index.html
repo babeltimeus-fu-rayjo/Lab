@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0f1220">
-  <meta name="description" content="Scratch a bingo card cell by cell: complete a line of stars to win. Set the grid size, how many scratches you get, and force a winning or losing card.">
-  <title>Scratch Bingo · Lab</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎟️</text></svg>">
+  <meta name="description" content="Scratch a card cell by cell and match X of the same symbol to win. Set the grid size, your scratch budget, the reveal threshold and the match target, and force a winning or losing card.">
+  <title>Scratch Match · Lab</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍒</text></svg>">
   <link rel="stylesheet" href="../../assets/css/site.css">
   <style>
-    .bingo-wrap { width: min(940px, 100% - 2rem); margin-inline: auto; }
+    .match-wrap { width: min(940px, 100% - 2rem); margin-inline: auto; }
 
     .layout { display: grid; grid-template-columns: 1fr minmax(240px, 320px); gap: 1.75rem; align-items: start; }
     @media (max-width: 780px) { .layout { grid-template-columns: 1fr; } }
@@ -21,23 +21,28 @@
     .scratches { font-weight: 700; font-variant-numeric: tabular-nums; }
     .scratches b { font-size: 1.35rem; color: var(--accent); }
     .scratches.none b { color: var(--bad); }
+    .goal { color: var(--muted); font-weight: 600; }
 
-    /* The grid of scratch cells (bingo.js sets grid-template-columns). */
-    #bingo { width: 100%; }
-    .bingo-cell {
+    /* The grid of scratch cells (match.js sets grid-template-columns). */
+    #card { width: 100%; }
+    .match-cell {
       position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden;
       border: 1px solid var(--border); background: #0b0e1a;
       transition: filter 0.2s ease;
     }
-    .bingo-face {
+    .match-face {
       position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
       font-size: clamp(1.1rem, 6vw, 2.1rem); line-height: 1; user-select: none;
       background: var(--surface-2);
     }
-    .bingo-face.is-hit { background: radial-gradient(circle at 50% 38%, #5a4415, #2a2008 70%); }
-    .bingo-cell.is-locked { filter: grayscale(0.7) brightness(0.62); }
-    .bingo-cell.is-win { z-index: 1; outline: 3px solid var(--warn); outline-offset: -3px; animation: bingoPulse 1s ease-in-out infinite alternate; }
-    @keyframes bingoPulse {
+    .match-cell.is-locked { filter: grayscale(0.7) brightness(0.62); }
+    .match-cell.is-win {
+      z-index: 1; outline: 3px solid var(--warn); outline-offset: -3px;
+      background: radial-gradient(circle at 50% 38%, #5a4415, #2a2008 70%);
+      animation: winPulse 1s ease-in-out infinite alternate;
+    }
+    .match-cell.is-win .match-face { background: transparent; }
+    @keyframes winPulse {
       from { box-shadow: 0 0 0 0 rgba(255, 204, 77, 0.45); }
       to { box-shadow: 0 0 18px 5px rgba(255, 204, 77, 0.8); }
     }
@@ -59,7 +64,6 @@
     .setting select { width: 100%; padding: 0.5rem 0.6rem; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }
     .setting select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
     .setting .note { margin: 0.4rem 0 0; font-size: 0.78rem; color: var(--muted); }
-    .setting .note.warn { color: var(--warn); }
 
     .demo-notes { margin: 2rem 0 3rem; padding: 1rem 1.25rem; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--muted); font-size: 0.9rem; }
     .demo-notes code { color: var(--text); }
@@ -67,23 +71,23 @@
 </head>
 <body>
   <header class="demo-header">
-    <div class="bingo-wrap">
+    <div class="match-wrap">
       <a class="back-inline" href="../../">← Lab</a>
       <p class="demo-kicker">Demo</p>
-      <h1>Scratch Bingo</h1>
-      <p class="tagline">Scratch a bingo card one cell at a time. Reveal a full line of ⭐ — a row, a column, or a diagonal — before your scratches run out.</p>
+      <h1>Scratch Match</h1>
+      <p class="tagline">Scratch a card one cell at a time and reveal <b>X of the same symbol</b> to win — before your scratches run out.</p>
     </div>
   </header>
 
-  <main class="bingo-wrap">
+  <main class="match-wrap">
     <div class="layout board" id="board">
       <div>
         <div class="stage">
           <div class="hud">
             <span class="scratches" id="scratches">Scratches left <b id="left">12</b></span>
-            <span class="muted" id="goal">Line up ⭐</span>
+            <span class="goal" id="goal">Match 3 of a kind</span>
           </div>
-          <div id="bingo" aria-label="Scratch bingo card"></div>
+          <div id="card" aria-label="Scratch match card"></div>
           <div class="readout" aria-live="polite">
             <p class="status" id="status"><span class="hint">Scratch a cell to start.</span></p>
           </div>
@@ -108,9 +112,21 @@
         </div>
 
         <div class="setting">
+          <label for="match">Match <output id="match-out">3</output></label>
+          <input type="range" id="match" min="2" max="5" step="1" value="3">
+          <p class="note" id="match-note">Reveal 3 of the same symbol to win.</p>
+        </div>
+
+        <div class="setting">
           <label for="limit">Scratch limit <output id="limit-out">12</output></label>
-          <input type="range" id="limit" min="1" max="25" step="1" value="12">
-          <p class="note" id="limit-note">A line needs 5 in a row.</p>
+          <input type="range" id="limit" min="2" max="25" step="1" value="12">
+          <p class="note" id="limit-note">Scratch up to 12 of 25 cells.</p>
+        </div>
+
+        <div class="setting">
+          <label for="threshold">Reveal at <output id="threshold-out">55%</output></label>
+          <input type="range" id="threshold" min="20" max="100" step="5" value="55">
+          <p class="note">How much of a cell to scratch before it pops open.</p>
         </div>
 
         <div class="setting">
@@ -125,24 +141,24 @@
     </div>
 
     <div class="demo-notes">
-      The card lives in <code>bingo.js</code> next to this page. Every cell is its own mini scratch card —
-      it reuses the same <code>scratcher.js</code> as the Scratch Card demo — hiding a ⭐ (a hit) or a dud.
-      Touching a cell commits one of your scratches, so there's no free peeking; when the limit is spent,
-      the rest lock. Complete any line of stars and it's a <strong>BINGO</strong>. A predetermined
-      <em>Winning card</em> always hides a full star line (use <strong>Reveal all</strong> to see it);
-      a <em>Losing card</em> never lets one complete.
+      The card lives in <code>match.js</code> next to this page. Every cell is its own mini scratch card —
+      it reuses the same <code>scratcher.js</code> as the Scratch Card demo — hiding one symbol. Touching a
+      cell commits one of your scratches (no free peeking); when the limit is spent, the rest lock. Reveal
+      <strong>X of the same symbol</strong> anywhere on the card and it's a match. A predetermined
+      <em>Winning card</em> is arranged so a match is guaranteed within your scratch budget; a
+      <em>Losing card</em> never lets one complete. <strong>Reveal at</strong> sets how far you must scratch
+      an individual cell before it pops fully open.
     </div>
   </main>
 
   <script type="module">
     const v = `?v=${encodeURIComponent(document.lastModified)}`;
-    const [{ createScratcher }, { createBingo }] = await Promise.all([
+    const [{ createScratcher }, { createMatch }] = await Promise.all([
       import(`../scratcher/scratcher.js${v}`),
-      import(`./bingo.js${v}`),
+      import(`./match.js${v}`),
     ]);
 
-    const mount = document.getElementById('bingo');
-    const board = document.getElementById('board');
+    const mount = document.getElementById('card');
     const left = document.getElementById('left');
     const scratches = document.getElementById('scratches');
     const status = document.getElementById('status');
@@ -152,69 +168,82 @@
     const rowsOut = document.getElementById('rows-out');
     const colsRange = document.getElementById('cols');
     const colsOut = document.getElementById('cols-out');
+    const matchRange = document.getElementById('match');
+    const matchOut = document.getElementById('match-out');
+    const matchNote = document.getElementById('match-note');
     const limitRange = document.getElementById('limit');
     const limitOut = document.getElementById('limit-out');
     const limitNote = document.getElementById('limit-note');
+    const thresholdRange = document.getElementById('threshold');
+    const thresholdOut = document.getElementById('threshold-out');
     const resultSelect = document.getElementById('result');
 
-    let rows = 5, cols = 5, limit = 12;
+    let rows = 5, cols = 5, limit = 12, target = 3;
 
-    const bingo = createBingo(mount, { createScratcher, rows, cols, scratchLimit: limit, result: 'random' });
+    const game = createMatch(mount, {
+      createScratcher, rows, cols, scratchLimit: limit, matchTarget: target,
+      result: 'random', completeAt: Number(thresholdRange.value) / 100,
+    });
 
     function setStatus(html, cls = '') { status.className = `status ${cls}`.trim(); status.innerHTML = html; }
-    function setLeft(n) {
-      left.textContent = n;
-      scratches.classList.toggle('none', n <= 0);
-    }
+    function setLeft(n) { left.textContent = n; scratches.classList.toggle('none', n <= 0); }
 
-    // Keep the scratch-limit slider bounded by the grid, and warn when a line is
-    // unreachable (fewer scratches than the shortest line).
-    function syncLimitBounds() {
+    // Keep the sliders consistent with the grid: the limit can't exceed the cell
+    // count, and the match target can't exceed what you're able to reveal.
+    function syncBounds() {
       const total = rows * cols;
       limitRange.max = String(total);
-      limit = Math.min(limit, total);
+      limit = Math.min(Math.max(2, limit), total);
       limitRange.value = String(limit);
       limitOut.textContent = limit;
-      const min = Math.min(rows, cols);
-      const short = limit < min;
-      limitNote.textContent = short
-        ? `Only ${limit} scratch${limit === 1 ? '' : 'es'} — a line needs ${min}, so no bingo is possible.`
-        : `A line needs ${min} in a row.`;
-      limitNote.classList.toggle('warn', short);
+      limitNote.textContent = `Scratch up to ${limit} of ${total} cells.`;
+
+      const maxTarget = Math.min(5, limit, total);
+      target = Math.min(Math.max(2, target), maxTarget);
+      matchRange.max = String(maxTarget);
+      matchRange.value = String(target);
+      matchOut.textContent = target;
+      matchNote.textContent = `Reveal ${target} of the same symbol to win.`;
     }
 
     function deal() {
-      syncLimitBounds();
-      bingo.setConfig({ rows, cols, scratchLimit: limit, result: resultSelect.value });
+      syncBounds();
+      game.setConfig({ rows, cols, scratchLimit: limit, matchTarget: target, result: resultSelect.value });
     }
 
-    bingo.addEventListener('deal', (e) => {
+    game.addEventListener('deal', (e) => {
       setLeft(e.detail.limit);
       setStatus('<span class="hint">Scratch a cell to start.</span>');
-      goal.textContent = e.detail.rows === e.detail.cols ? 'Line up ⭐ (rows · cols · diagonals)' : 'Line up ⭐ (rows · cols)';
+      goal.textContent = `Match ${e.detail.target} of a kind`;
     });
-    bingo.addEventListener('commit', (e) => setLeft(e.detail.limit - e.detail.used));
-    bingo.addEventListener('bingo', (e) => {
-      const n = e.detail.lines.length;
-      setStatus(`BINGO! 🎉 You completed ${n > 1 ? `${n} lines` : 'a line'}.`, 'win');
+    game.addEventListener('commit', (e) => setLeft(e.detail.limit - e.detail.used));
+    game.addEventListener('match', (e) => {
+      setStatus(`MATCH! 🎉 ${e.detail.count} × ${e.detail.symbol}`, 'win');
     });
-    bingo.addEventListener('exhausted', () => {
-      if (!bingo.won) setStatus('Out of scratches — hit <strong>Reveal all</strong> to see the card.', 'over');
+    game.addEventListener('exhausted', () => {
+      if (!game.won) setStatus('Out of scratches — hit <strong>Reveal all</strong> to see the card.', 'over');
     });
 
     rowsRange.addEventListener('input', () => { rows = Number(rowsRange.value); rowsOut.textContent = rows; deal(); });
     colsRange.addEventListener('input', () => { cols = Number(colsRange.value); colsOut.textContent = cols; deal(); });
+    matchRange.addEventListener('input', () => { target = Number(matchRange.value); matchOut.textContent = target; deal(); });
     limitRange.addEventListener('input', () => { limit = Number(limitRange.value); limitOut.textContent = limit; deal(); });
     resultSelect.addEventListener('change', deal);
 
+    // Reveal threshold is a scratch-feel setting — apply it live, don't re-deal.
+    thresholdRange.addEventListener('input', () => {
+      thresholdOut.textContent = `${thresholdRange.value}%`;
+      game.setThreshold(Number(thresholdRange.value) / 100);
+    });
+
     document.getElementById('reveal').addEventListener('click', () => {
-      bingo.revealAll();
-      if (!bingo.won) setStatus('No bingo on this card.', 'over');
+      game.revealAll();
+      if (!game.won) setStatus('No match on this card.', 'over');
     });
     document.getElementById('new').addEventListener('click', deal);
 
-    syncLimitBounds();
-    window.__bingo = bingo; // for the console
+    syncBounds();
+    window.__match = game; // for the console
   </script>
 </body>
 </html>
