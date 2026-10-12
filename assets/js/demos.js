@@ -54,4 +54,14 @@ export const demos = [
     path: 'demos/match/',
     tags: ['canvas', 'pointer events', 'configurable'],
   },
+  {
+    id: 'avatar',
+    title: 'Avatar Creator',
+    icon: '🧍',
+    tagline: 'Build an animated 2D character: swap body parts and mix costume pieces slot by slot.',
+    description:
+      'A bone-driven character drawn on canvas with procedural animations — idle, walk, run, jump, wave, dance. Swap the build, head, hair, eyes and mouth, then mix costume pieces slot by slot (hat, face, top, gloves, bottom, shoes, back, held item) so any combination composes and follows every animation.',
+    path: 'demos/avatar/',
+    tags: ['canvas', 'animation', 'configurable'],
+  },
 ];
