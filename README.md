@@ -13,6 +13,7 @@ No build step, no dependencies — plain HTML, CSS and ES modules, hosted on Git
 | [Slot Machine](demos/slots/) | A configurable slot machine — set the number of reels, the rows per reel and the exact symbols, then spin. Reels blur, roll and settle with a staggered stop. Purely visual, no scoring; optionally force a predetermined result on the centre payline. |
 | [Spinning Wheel](demos/wheel/) | A configurable prize wheel — set the number of slices, each slice's width and the spin speed, then flick it. It eases to a stop under the pointer and reports the slice; a wider slice wins more often. Optionally force it to land on a chosen slice. |
 | [Drop to Win](demos/drop/) | A Plinko board with simple 2D physics — balls fall through a peg field into prize slots that run hot toward the edges. Set the board width, height, how many balls drop and where they're released (or click the board to aim); land a few hundred to trace a bell curve. Optionally rig every ball to land in a chosen slot. |
+| [Split-Screen Camera](demos/split-camera/) | A local co-op camera for up to four players. Views merge seamlessly when players are together and split at an angle when they move apart; compare with fixed side-by-side, stacked and four-panel layouts, and try the mini map options. Drive players by keyboard, gamepad or bots. Uses PixiJS, loaded from a pinned CDN build. |
 
 ## Structure
 

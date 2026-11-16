@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1220">
+  <meta name="description" content="A split-screen camera for up to four local players: views merge seamlessly when players are together and split at an angle when they move apart.">
+  <title>Split-Screen Camera · Lab</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎥</text></svg>">
+  <link rel="stylesheet" href="../../assets/css/site.css">
+  <style>
+    /* This demo fills the window: the camera is the thing being shown. */
+    html, body { height: 100%; overflow: hidden; }
+    body { margin: 0; background: #0c1016; font-size: 13px; line-height: 1.4; }
+    #stage { position: fixed; inset: 0; }
+
+    #panel {
+      position: fixed; top: 10px; left: 10px; width: 260px; max-height: calc(100vh - 20px);
+      overflow-y: auto; box-sizing: border-box; padding: 10px 12px;
+      background: rgba(15, 18, 32, 0.9); border: 1px solid var(--border); border-radius: 12px;
+      color: var(--text);
+    }
+    #panel.hidden { display: none; }
+    #panel h1 { font-size: 15px; margin: 4px 0 8px; letter-spacing: -0.01em; }
+    #panel h2 { font-size: 11px; font-weight: 700; margin: 10px 0 4px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+    #panel .row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 4px; }
+    #panel .row label { flex: 0 0 34px; font-weight: 700; }
+    #panel button, #panel select {
+      font: inherit; color: inherit; background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 7px; padding: 3px 8px; cursor: pointer;
+    }
+    #panel select { flex: 1; min-width: 0; }
+    #panel button.on { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #0b0e1a; border-color: transparent; font-weight: 700; }
+    #stats { margin: 0; font: 12px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+    #help { color: var(--muted); margin: 0; }
+    #hint { position: fixed; left: 10px; bottom: 10px; color: var(--muted); font-size: 12px; pointer-events: none; }
+    #error { position: fixed; inset: 0; display: none; place-items: center; padding: 2rem; text-align: center; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div id="stage" aria-label="Split-screen camera test room"></div>
+  <div id="panel"></div>
+  <div id="hint">H: show or hide panel</div>
+  <div id="error"></div>
+
+  <script type="module">
+    // PixiJS is the one outside dependency in Lab. It is loaded from a pinned
+    // CDN build, so there is still no build step and nothing to install.
+    const PIXI_URL = 'https://cdn.jsdelivr.net/npm/pixi.js@8.23.0/dist/pixi.min.mjs';
+    const v = `?v=${Date.now()}`;
+    try {
+      const [PIXI, splitCamera, demo] = await Promise.all([
+        import(PIXI_URL),
+        import(`./split-camera.js${v}`),
+        import(`./demo.js${v}`),
+      ]);
+      await demo.start({
+        PIXI,
+        splitCamera,
+        host: document.getElementById('stage'),
+        panel: document.getElementById('panel'),
+      });
+    } catch (err) {
+      console.error(err);
+      const box = document.getElementById('error');
+      box.style.display = 'grid';
+      box.textContent = 'This demo could not start. It needs a network connection to load PixiJS.';
+    }
+  </script>
+</body>
+</html>

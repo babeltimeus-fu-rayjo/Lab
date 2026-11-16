@@ -64,4 +64,14 @@ export const demos = [
     path: 'demos/avatar/',
     tags: ['canvas', 'animation', 'configurable'],
   },
+  {
+    id: 'split-camera',
+    title: 'Split-Screen Camera',
+    icon: '🎥',
+    tagline: 'Up to four players on one screen: views merge when they are together and split at an angle when they part.',
+    description:
+      'A local co-op camera test room. Players who are close share one seamless view; when they move apart the screen divides so each owns the area nearest their character, with dividers that point toward the others. Compare it with fixed side-by-side, stacked and four-panel layouts, try the mini map options, and drive players by keyboard, gamepad or bots.',
+    path: 'demos/split-camera/',
+    tags: ['pixijs', 'camera', 'local co-op'],
+  },
 ];
